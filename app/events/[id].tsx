@@ -18,16 +18,16 @@ export default function EventDetailScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>Salman HAdi</Text>
-            <Text style={styles.userMajor}>Teknik Kayu</Text>
+            <Text style={styles.userName}>Yafi Ghazian</Text>
+            <Text style={styles.userMajor}>Teknik Informatika</Text>
           </View>
         </View>
       </View>
 
-      {/* Poster Event */}
+      {/* Event Poster */}
       <View style={styles.posterContainer} />
 
-      {/* Deskripsi Card */}
+      {/* Description Card */}
       <View style={styles.descriptionCard}>
         <Text style={styles.descriptionTitle}>Deskripsi event</Text>
         <Text style={styles.descriptionText}>
@@ -35,7 +35,7 @@ export default function EventDetailScreen() {
         </Text>
       </View>
 
-      {/* Tombol Aksi */}
+      {/* Action Button */}
       <View style={styles.actionContainer}>
         <TouchableOpacity style={styles.actionButton}>
           <Text style={styles.buttonText}>Bookmark</Text>
