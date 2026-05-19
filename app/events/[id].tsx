@@ -18,7 +18,7 @@ export default function EventDetailScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>Yafi Ghazian</Text>
+            <Text style={styles.userName}>Salman Hadi</Text>
             <Text style={styles.userMajor}>Teknik Informatika</Text>
           </View>
         </View>
