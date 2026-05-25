@@ -117,7 +117,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.navIcon}>
             <Ionicons name="time-outline" size={30} color="#FFF" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIcon}>
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/user-profile')}>
             <Ionicons name="person" size={28} color="#FFF" />
           </TouchableOpacity>
         </View>
