@@ -9,8 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -51,7 +54,7 @@ export default function LoginScreen() {
             
             <View style={styles.registerRow}>
               <Text style={styles.normalText}>Don't Have Account? </Text>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/register-screen')}>
                 <Text style={styles.registerText}>Register Here</Text>
               </TouchableOpacity>
             </View>
