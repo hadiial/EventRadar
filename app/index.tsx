@@ -114,7 +114,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.navIcon}>
+          {/* PENYESUAIAN: Menambahkan fungsi onPress untuk navigasi ke event-form */}
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/event-form' as any)}>
             <Ionicons name="time-outline" size={30} color="#FFF" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/user-profile')}>
