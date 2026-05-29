@@ -103,7 +103,9 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.navIcon}>
             <Ionicons name="calendar" size={28} color="#FFF" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIcon}>
+          
+          {/* PENYESUAIAN: Menambahkan fungsi onPress untuk navigasi ke bookmarks */}
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/bookmarks-page')}>
             <Ionicons name="bookmark" size={28} color="#FFF" />
           </TouchableOpacity>
 
