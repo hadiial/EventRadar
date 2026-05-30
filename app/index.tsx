@@ -12,12 +12,32 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import { auth, database } from '../database';
+import BottomNav from '@/components/bottom-nav';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [userProfile, setUserProfile] = useState<{ username: string; jurusan: string } | null>(null);
+
+  // --- ADDITIONAL STATE FOR SEARCH BAR ---
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // DTemporary mock event data
+  const [mockEvents] = useState([
+    { id: 'EVT-001', title: 'Seminar IT' },
+    { id: 'EVT-002', title: 'Lomba Futsal' },
+    { id: 'EVT-003', title: 'Workshop UI/UX' },
+    { id: 'EVT-004', title: 'Bazar Kampus' },
+    { id: 'EVT-005', title: 'Bedah Buku' },
+    { id: 'EVT-006', title: 'Pentas Seni' },
+  ]);
+
+  // Filter logic to match typed text with event titles
+  const filteredEvents = mockEvents.filter((event) =>
+    event.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -35,7 +55,7 @@ export default function HomeScreen() {
         return () => unsubscribeDb();
       } else {
         setUserProfile(null);
-        // Redirect ditangani oleh _layout.tsx (auth guard)
+        // Redirect is handled by _layout.tsx (auth guard)
       }
     });
     return () => unsubscribe();
@@ -67,6 +87,8 @@ export default function HomeScreen() {
         style={styles.searchInput}
         placeholder="Search event..."
         placeholderTextColor="#7A8B99"
+        value={searchQuery} // Connecting text input value to state
+        onChangeText={setSearchQuery} // Updating state every time the user types
       />
         <Ionicons name="search" size={20} color="#2F4454" />
       </View>
@@ -92,13 +114,20 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.gridContainer}>
-      {/* 6 Grid Items - Updated to TouchableOpacity for navigation. */}
-        <TouchableOpacity style={styles.gridItem} onPress={() => router.push('/events/[id]')} />
-        <TouchableOpacity style={styles.gridItem} onPress={() => router.push('/events/[id]')} />
-        <TouchableOpacity style={styles.gridItem} onPress={() => router.push('/events/[id]')} />
-        <TouchableOpacity style={styles.gridItem} onPress={() => router.push('/events/[id]')} />
-        <TouchableOpacity style={styles.gridItem} onPress={() => router.push('/events/[id]')} />
-        <TouchableOpacity style={styles.gridItem} onPress={() => router.push('/events/[id]')} />
+      {/* Filtered event data loop */}
+      {filteredEvents.length > 0 ? (
+          filteredEvents.map((event) => (
+            <TouchableOpacity 
+              key={event.id}
+              style={styles.gridItem} 
+              onPress={() => router.push(`/events/${event.id}`)}
+            >
+              <Text style={styles.eventTitleText}>{event.title}</Text>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <Text style={styles.noDataText}>Event tidak ditemukan</Text>
+        )}
       </View>
 
       <TouchableOpacity style={styles.moreLink}>
@@ -123,34 +152,8 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* BOTTOM NAVIGATION (ABSOLUTE) */}
-      <View style={styles.bottomNavContainer}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push("/jadwal")}>
-            <Ionicons name="calendar" size={28} color="#FFF" />
-          </TouchableOpacity>
-          
-          {/* PENYESUAIAN: Menambahkan fungsi onPress untuk navigasi ke bookmarks */}
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/bookmarks-page')}>
-            <Ionicons name="bookmark" size={28} color="#FFF" />
-          </TouchableOpacity>
-
-          {/* CENTER HOME BUTTON */}
-          <View style={styles.homeButtonWrapper}>
-            <TouchableOpacity style={styles.homeButton}>
-              <Ionicons name="home" size={36} color="#2F4454" />
-            </TouchableOpacity>
-          </View>
-
-          {/* PENYESUAIAN: Menambahkan fungsi onPress untuk navigasi ke event-form */}
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/event-form' as any)}>
-            <Ionicons name="time-outline" size={30} color="#FFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/user-profile')}>
-            <Ionicons name="person" size={28} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* BOTTOM NAVIGATION BAR */}
+      <BottomNav/>
     </SafeAreaView>
   );
 }
@@ -159,8 +162,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#E8F5CC',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-
   header: {
     backgroundColor: '#A9D08E',
     paddingHorizontal: 20,
@@ -169,12 +172,10 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
   },
-
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-
   avatarPlaceholder: {
     width: 50,
     height: 50,
@@ -182,22 +183,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F6F6',
     marginRight: 15,
   },
-
     userName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2F4454',
   },
-
   userMajor: {
     fontSize: 12,
     color: '#2F4454',
   },
-
   scrollContent: {
     paddingBottom: 120,
   },
-
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -210,13 +207,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2F4454',
   },
-
     searchInput: {
     flex: 1,
     fontSize: 14,
     color: '#2F4454',
   },
-
   featuredCard: {
     backgroundColor: '#A9D08E',
     height: 180,
@@ -224,13 +219,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
     borderRadius: 15,
   },
-
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 10,
   },
-
   dot: {
     width: 10,
     height: 10,
@@ -238,113 +231,76 @@ const styles = StyleSheet.create({
     backgroundColor: '#A9D08E',
     marginHorizontal: 4,
   },
-
   dotActive: {
     backgroundColor: '#2F4454',
   },
-
   sectionHeader: {
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 10,
   },
-
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#2F4454',
   },
-
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
   },
-
   gridItem: {
     width: '48%',
     height: 90,
     backgroundColor: '#A9D08E',
     borderRadius: 10,
     marginBottom: 10,
+    justifyContent: 'center', 
+    alignItems: 'center',     
   },
-
+  eventTitleText: {
+    color: '#2F4454',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    paddingHorizontal: 5,
+  },
+  noDataText: {
+    width: '100%',
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#7A8B99',
+    fontStyle: 'italic',
+  },
   moreLink: {
     alignItems: 'flex-end',
     paddingHorizontal: 20,
   },
-
   moreText: {
     color: '#2F4454',
     fontWeight: 'bold',
     fontSize: 12,
     textDecorationLine: 'underline',
   },
-
   popularContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
   },
-
   popularItem: {
     width: '48%',
     height: 100,
     backgroundColor: '#7A8B99',
     borderRadius: 10,
   },
-
   footer: {
     paddingHorizontal: 20,
     marginTop: 20,
     marginBottom: 30,
   },
-
   footerText: {
     color: '#556B7D',
     fontSize: 12,
     marginBottom: 5,
-  },
-
-  bottomNavContainer: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#354A5F',
-    height: 65,
-    borderRadius: 20,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-
-  navIcon: {
-    padding: 10,
-  },
-
-  homeButtonWrapper: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#E8F5CC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -30,
-  },
-
-  homeButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

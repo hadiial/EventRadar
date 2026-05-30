@@ -30,7 +30,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      // Auth guard di _layout.tsx akan otomatis redirect ke home
+      // Auth guard in _layout.tsx will automatically redirect to home
     } catch (error: any) {
       setLoading(false);
       let errorMessage = 'Terjadi kesalahan saat masuk.';

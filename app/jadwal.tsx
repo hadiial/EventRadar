@@ -9,7 +9,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
+import BottomNav from "@/components/bottom-nav";
 
 const DUMMY_EVENTS = [
   { id: "1",  day: "12", month: "Desember",  year: "2025", name: "Workshop UI/UX Design" },
@@ -48,12 +50,11 @@ export default function JadwalScreen() {
 
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>jadwal</Text>
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>Salman HAdi</Text>
-            <Text style={styles.userMajor}>Teknik Kayu</Text>
+            <Text style={styles.userName}>Salman Hadi</Text>
+            <Text style={styles.userMajor}>Teknik Informatika</Text>
           </View>
         </View>
       </View>
@@ -129,32 +130,8 @@ export default function JadwalScreen() {
         </View>
       </ScrollView>
 
-      {/* BOTTOM NAVIGATION */}
-      <View style={styles.bottomNavContainer}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navIcon}>
-            <Ionicons name="calendar" size={28} color="#A9D08E" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/bookmarks-page')}>
-            <Ionicons name="bookmark" size={28} color="#FFF" />
-          </TouchableOpacity>
-
-          <View style={styles.homeButtonWrapper}>
-            <TouchableOpacity style={styles.homeButton} onPress={() => router.back()}>
-              <Ionicons name="home" size={36} color="#2F4454" />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/event-form' as any)}>
-            <Ionicons name="time-outline" size={30} color="#FFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/user-profile')}>
-            <Ionicons name="person" size={28} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* BOTTOM NAVIGATION BAR */}
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -163,8 +140,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#E8F5CC",
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-
   header: {
     backgroundColor: "#A9D08E",
     paddingHorizontal: 20,
@@ -173,18 +150,15 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
   },
-
   headerTitle: {
     fontSize: 13,
     color: "#2F4454",
     marginBottom: 12,
   },
-
   userInfo: {
     flexDirection: "row",
     alignItems: "center",
   },
-
   avatarPlaceholder: {
     width: 50,
     height: 50,
@@ -192,22 +166,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4F6F6",
     marginRight: 15,
   },
-
   userName: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#2F4454",
   },
-
   userMajor: {
     fontSize: 12,
     color: "#2F4454",
   },
-
   scrollContent: {
     paddingBottom: 120,
   },
-
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -216,20 +186,17 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 12,
   },
-
   sectionTitle: {
     fontSize: 14,
     fontWeight: "bold",
     color: "#2F4454",
   },
-
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     paddingHorizontal: 20,
   },
-
   gridItem: {
     width: "48%",
     height: 110,
@@ -239,54 +206,45 @@ const styles = StyleSheet.create({
     padding: 8,
     justifyContent: "space-between",
   },
-
   gridItemActive: {
     borderWidth: 2,
     borderColor: "#2F4454",
   },
-
   gridItemTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-
   gridItemDayRow: {
     flexDirection: "row",
     alignItems: "baseline",
     gap: 4,
   },
-
   gridItemDay: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#2F4454",
   },
-
   gridItemYear: {
     fontSize: 11,
     color: "#2F4454",
   },
-
   gridItemMonth: {
     fontSize: 11,
     color: "#2F4454",
     marginTop: 1,
   },
-
   gridItemImage: {
     width: 36,
     height: 36,
     borderRadius: 6,
     backgroundColor: "#2F4454",
   },
-
   gridItemName: {
     fontSize: 12,
     fontWeight: "bold",
     color: "#2F4454",
   },
-
   pagination: {
     flexDirection: "row",
     justifyContent: "center",
@@ -294,22 +252,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     gap: 6,
   },
-
   pageArrow: {
     paddingHorizontal: 6,
     paddingVertical: 4,
   },
-
   pageArrowText: {
     fontSize: 16,
     color: "#2F4454",
     fontWeight: "bold",
   },
-
   pageArrowDisabled: {
     color: "#B0BEC5",
   },
-
   pageBtn: {
     width: 28,
     height: 28,
@@ -318,59 +272,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   pageBtnActive: {
     backgroundColor: "#2F4454",
   },
-
   pageBtnText: {
     fontSize: 12,
     color: "#2F4454",
     fontWeight: "bold",
   },
-
   pageBtnTextActive: {
     color: "#FFF",
-  },
-
-  bottomNavContainer: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-
-  bottomNav: {
-    flexDirection: "row",
-    backgroundColor: "#354A5F",
-    height: 65,
-    borderRadius: 20,
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 10,
-  },
-
-  navIcon: {
-    padding: 10,
-  },
-
-  homeButtonWrapper: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#E8F5CC",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: -30,
-  },
-
-  homeButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#FFF",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

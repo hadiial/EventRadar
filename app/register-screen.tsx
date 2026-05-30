@@ -22,8 +22,8 @@ import { auth, database } from '../database';
 /**
  * RegisterScreen Component
  * Handles the two-step user registration flow.
- * Step 1: Data akun (email, username, password)
- * Step 2: Data profil (fakultas, jurusan, nomor HP)
+ * Step 1: Account data (email, username, password)
+ * Step 2: Profile data (fakultas, jurusan, nomor HP)
  */
 export default function RegisterScreen() {
   const router = useRouter();
@@ -31,19 +31,19 @@ export default function RegisterScreen() {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Step 1 - Data akun
+  // Step 1 - Account data
   const [email, setEmail] = useState<string>('');
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   
-  // Step 2 - Data profil
+  // Step 2 - Profile data
   const [faculty, setFaculty] = useState<string>('');
   const [major, setMajor] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
 
   /**
-   * Validasi Step 1 dan lanjut ke Step 2
+   * Validation Step 1 and proceed to Step 2
    */
   const handleNext = () => {
     if (!email.trim() || !username.trim() || !password || !confirmPassword) {
@@ -67,7 +67,7 @@ export default function RegisterScreen() {
   };
 
   /**
-   * Daftarkan user ke Firebase Authentication + simpan profil ke Realtime Database
+   * Register the user to Firebase Authentication + save the profile to Realtime Database
    */
   const handleRegister = async () => {
     if (!faculty.trim() || !major.trim() || !phone.trim()) {
@@ -77,7 +77,7 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      // 1. Buat akun di Firebase Auth
+      // 1. Create an account in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email.trim(),
@@ -85,7 +85,7 @@ export default function RegisterScreen() {
       );
       const user = userCredential.user;
 
-      // 2. Simpan data profil ke Realtime Database
+      // 2. Save profile data to Realtime Database
       const userRef = ref(database, 'users/' + user.uid);
       await set(userRef, {
         uid: user.uid,
@@ -149,7 +149,7 @@ export default function RegisterScreen() {
             {currentStep === 1 ? 'Step 1: Data Akun' : 'Step 2: Data Profil'}
           </Text>
 
-          {/* STEP 1: Data Akun */}
+          {/* STEP 1: Account data */}
           {currentStep === 1 && (
             <View style={styles.formContainer}>
               <View style={styles.inputGroup}>
@@ -211,11 +211,11 @@ export default function RegisterScreen() {
             </View>
           )}
 
-          {/* STEP 2: Data Profil */}
+          {/* STEP 2: Profile data */}
           {currentStep === 2 && (
             <View style={styles.formContainer}>
               
-              {/* Tombol kembali ke Step 1 */}
+              {/* Back button to Step 1 */}
               <TouchableOpacity onPress={() => setCurrentStep(1)} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color="#2F4454" />
                 <Text style={styles.backText}>Kembali</Text>

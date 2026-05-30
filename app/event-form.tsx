@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import BottomNav from '@/components/bottom-nav';
 
 /**
  * EventForm Component
@@ -137,31 +138,7 @@ export default function EventFormScreen() {
       </KeyboardAvoidingView>
 
       {/* BOTTOM NAVIGATION BAR */}
-      <View style={styles.navBarContainer}>
-        <View style={styles.navBar}>
-          <TouchableOpacity style={styles.navBtn} onPress={() => router.push('/calendar' as any)}>
-            <Ionicons name="calendar" size={28} color="#FFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.navBtn} onPress={() => router.push('/bookmarks' as any)}>
-            <Ionicons name="bookmark" size={28} color="#FFF" />
-          </TouchableOpacity>
-          
-          <View style={styles.centerBtnHolder}>
-            <TouchableOpacity style={styles.centerBtn} onPress={() => router.replace('/')}>
-              <Ionicons name="home" size={36} color="#2F4454" />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={[styles.navBtn, { opacity: 1 }]}>
-            <Ionicons name="time" size={30} color="#FFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.navBtn} onPress={() => router.push('/user-profile' as any)}>
-            <Ionicons name="person" size={28} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -170,6 +147,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#E8F5CC', 
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   scrollContent: {
     paddingHorizontal: 25,
@@ -257,47 +235,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  navBarContainer: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-  navBar: {
-    flexDirection: 'row',
-    backgroundColor: '#354A5F',
-    height: 65,
-    borderRadius: 20,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-  navBtn: {
-    padding: 10,
-    opacity: 0.7,
-  },
-  centerBtnHolder: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#E8F5CC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -30,
-  },
-  centerBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
   },
 });

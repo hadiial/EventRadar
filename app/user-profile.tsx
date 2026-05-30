@@ -12,8 +12,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import { auth, database } from '../database';
+import BottomNav from '@/components/bottom-nav';
 
 /**
  * UserProfile Component
@@ -161,53 +163,8 @@ export default function UserProfile() {
         </View>
       </ScrollView>
 
-      {/* ABSOLUTE BOTTOM NAVIGATION BAR */}
-      <View style={styles.bottomNavContainer}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity 
-            style={styles.navIcon} 
-            onPress={() => handleNavigation('/calendar')}
-            accessibilityLabel="Go to calendar"
-          >
-            <Ionicons name="calendar" size={28} color="#FFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.navIcon} 
-            onPress={() => handleNavigation('/bookmarks')}
-            accessibilityLabel="Go to bookmarks"
-          >
-            <Ionicons name="bookmark" size={28} color="#FFF" />
-          </TouchableOpacity>
-          
-          {/* FLOATING ACTION CENTER HOME BUTTON */}
-          <View style={styles.homeButtonWrapper}>
-            <TouchableOpacity 
-              style={styles.homeButton} 
-              onPress={() => handleNavigation('/')}
-              accessibilityLabel="Go to home screen"
-            >
-              <Ionicons name="home" size={36} color="#2F4454" />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.navIcon} 
-            onPress={() => handleNavigation('/create-event')}
-            accessibilityLabel="Go to create event"
-          >
-            <Ionicons name="add-circle-outline" size={32} color="#FFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.navIcon, styles.activeNavIcon]} 
-            onPress={() => handleNavigation('/user-profile')}
-            accessibilityLabel="Current screen, profile"
-          >
-            <Ionicons name="person" size={28} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* BOTTOM NAVIGATION BAR */}
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -216,6 +173,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#E8F5CC', 
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   header: {
     paddingHorizontal: 20,
@@ -330,50 +288,5 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E8E8',
     marginHorizontal: 15,
-  },
-  bottomNavContainer: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#354A5F', 
-    height: 65,
-    borderRadius: 20,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-  navIcon: {
-    padding: 10,
-    opacity: 0.7,
-  },
-  activeNavIcon: {
-    opacity: 1.0,
-  },
-  homeButtonWrapper: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#E8F5CC', 
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -30, 
-  },
-  homeButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
   },
 });

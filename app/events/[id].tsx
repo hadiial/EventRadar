@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 export default function EventDetailScreen() {
@@ -29,10 +29,13 @@ export default function EventDetailScreen() {
 
       {/* Description Card */}
       <View style={styles.descriptionCard}>
-        <Text style={styles.descriptionTitle}>Deskripsi event</Text>
-        <Text style={styles.descriptionText}>
-          Menampilkan detail informasi untuk Event ID: {id}
-        </Text>
+        {/* WRAP DESCRIPTION CONTENT WITH SCROLLVIEW */}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Text style={styles.descriptionTitle}>Deskripsi event</Text>
+          <Text style={styles.descriptionText}>
+            Menampilkan detail informasi untuk Event ID: {id}
+          </Text>
+        </ScrollView>
       </View>
 
       {/* Action Button */}
@@ -49,7 +52,12 @@ export default function EventDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#E8F5CC', paddingHorizontal: 20 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#E8F5CC', 
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 
+  },
   header: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 20 },
   backButton: { marginRight: 15 },
   backText: { fontSize: 16, color: '#2F4454', fontWeight: 'bold' },
@@ -59,8 +67,8 @@ const styles = StyleSheet.create({
   userMajor: { fontSize: 12, color: '#556B7D' },
   posterContainer: { backgroundColor: '#A9D08E', height: 200, borderRadius: 15, marginBottom: 20 },
   descriptionCard: { flex: 1, backgroundColor: '#F8FAF8', borderRadius: 15, borderWidth: 2, borderColor: '#2F4454', padding: 20, marginBottom: 20 },
-  descriptionTitle: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 10, textAlign: 'center' },
-  descriptionText: { fontSize: 14, color: '#333' },
+  descriptionTitle: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 10 },
+  descriptionText: { fontSize: 14, color: '#2F4454', lineHeight: 22 },
   actionContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
   actionButton: { backgroundColor: '#2F4454', flex: 0.48, paddingVertical: 15, borderRadius: 10, alignItems: 'center' },
   buttonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },

@@ -1,5 +1,3 @@
-// File: app/bookmarks.tsx
-
 import React, { useState } from 'react';
 import {
   View,
@@ -10,27 +8,37 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import BottomNav from '@/components/bottom-nav';
 
 export default function BookmarksScreen() {
   const router = useRouter();
 
+  // --- ADDITIONAL STATE FOR SEARCH BAR ---
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Mock data for the bookmarked events list based on the mockup
   const [bookmarkedEvents, setBookmarkedEvents] = useState([
-    { id: '1', title: 'Nama event', date: '30 Febuari 2024', status: 'Terdaftar' },
-    { id: '2', title: 'Nama event', date: '3 Maret 2024', status: 'Belum Terdaftar' },
-    { id: '3', title: 'Nama event', date: '14 Maret 2024', status: 'Belum Terdaftar' },
-    { id: '4', title: 'Nama event', date: '30 Maret 2024', status: 'Terdaftar' },
-    { id: '5', title: 'Nama event', date: '30 Febuari 2024', status: 'Terdaftar' },
-    { id: '6', title: 'Nama event', date: '30 Febuari 2024', status: 'Terdaftar' },
+    { id: '1', title: 'Seminar IT', date: '30 Febuari 2024', status: 'Terdaftar' },
+    { id: '2', title: 'Lomba Futsal', date: '3 Maret 2024', status: 'Belum Terdaftar' },
+    { id: '3', title: 'Workshop UI/UX', date: '14 Maret 2024', status: 'Belum Terdaftar' },
+    { id: '4', title: 'Bazar Kampus', date: '30 Maret 2024', status: 'Terdaftar' },
+    { id: '5', title: 'Bedah Buku', date: '30 Febuari 2024', status: 'Terdaftar' },
+    { id: '6', title: 'Pentas Seni', date: '30 Febuari 2024', status: 'Terdaftar' },
   ]);
+
+  // Filter logic to match typed text with event titles
+  const filteredEvents = bookmarkedEvents.filter((event) =>
+    event.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Simulated function to handle bookmark deletion
   const handleDelete = (id: string) => {
-    const filteredEvents = bookmarkedEvents.filter(event => event.id !== id);
-    setBookmarkedEvents(filteredEvents);
+    const remainingEvents = bookmarkedEvents.filter(event => event.id !== id);
+    setBookmarkedEvents(remainingEvents);
   };
 
   return (
@@ -41,8 +49,8 @@ export default function BookmarksScreen() {
       <View style={styles.header}>
         <View style={styles.avatarPlaceholder} />
         <View>
-          <Text style={styles.userName}>Salman HAdi</Text>
-          <Text style={styles.userMajor}>Teknik Kayu</Text>
+          <Text style={styles.userName}>Salman Hadi</Text>
+          <Text style={styles.userMajor}>Teknik Informatika</Text>
         </View>
       </View>
 
@@ -63,64 +71,47 @@ export default function BookmarksScreen() {
             style={styles.searchInput}
             placeholder="Search..."
             placeholderTextColor="#7A8B99"
+            value={searchQuery} // Connecting text input value to state
+            onChangeText={setSearchQuery} // Updating state every time the user types
           />
           <Ionicons name="search" size={20} color="#2F4454" />
         </View>
 
         {/* BOOKMARKED EVENTS LIST */}
         <View style={styles.listContainer}>
-          {bookmarkedEvents.map((item) => (
-            <View key={item.id} style={styles.card}>
-              
-              {/* Image Placeholder */}
-              <View style={styles.cardImagePlaceholder} />
-              
-              {/* Event Details */}
-              <View style={styles.cardDetails}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardDate}>{item.date}</Text>
-                <Text style={styles.cardStatus}>{item.status}</Text>
-              </View>
+          {/* Filtered event data loop */}
+          {filteredEvents.length > 0 ? (
+            filteredEvents.map((item) => (
+              <View key={item.id} style={styles.card}>
+                
+                {/* Image Placeholder */}
+                <View style={styles.cardImagePlaceholder} />
+                
+                {/* Event Details */}
+                <View style={styles.cardDetails}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardDate}>{item.date}</Text>
+                  <Text style={styles.cardStatus}>{item.status}</Text>
+                </View>
 
-              {/* Delete Icon */}
-              <TouchableOpacity 
-                style={styles.deleteButton} 
-                onPress={() => handleDelete(item.id)}
-              >
-                <Ionicons name="trash" size={20} color="#2F4454" />
-              </TouchableOpacity>
-            </View>
-          ))}
+                {/* Delete Icon */}
+                <TouchableOpacity 
+                  style={styles.deleteButton} 
+                  onPress={() => handleDelete(item.id)}
+                >
+                  <Ionicons name="trash" size={20} color="#2F4454" />
+                </TouchableOpacity>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noDataText}>Bookmark tidak ditemukan</Text>
+          )}
         </View>
 
       </ScrollView>
 
-      {/* BOTTOM NAVIGATION (ABSOLUTE) */}
-      <View style={styles.bottomNavContainer}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/calendar' as any)}>
-            <Ionicons name="calendar" size={28} color="#FFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={[styles.navIcon, { opacity: 1 }]}>
-            <Ionicons name="bookmark" size={28} color="#FFF" />
-          </TouchableOpacity>
-
-          <View style={styles.homeButtonWrapper}>
-            <TouchableOpacity style={styles.homeButton} onPress={() => router.replace('/')}>
-              <Ionicons name="home" size={36} color="#2F4454" />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/event-form' as any)}>
-            <Ionicons name="add-circle-outline" size={32} color="#FFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/user-profile' as any)}>
-            <Ionicons name="person" size={28} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* BOTTOM NAVIGATION BAR */}
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -129,6 +120,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#E8F5CC', // Pale yellow-green background
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   header: {
     flexDirection: 'row',
@@ -230,47 +222,11 @@ const styles = StyleSheet.create({
     right: 15,
     padding: 5,
   },
-  // BOTTOM NAVIGATION (Consistent with other screens)
-  bottomNavContainer: {
-    position: 'absolute',
-    bottom: 0,
+  noDataText: {
     width: '100%',
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#354A5F',
-    height: 65,
-    borderRadius: 20,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-  navIcon: {
-    padding: 10,
-    opacity: 0.7,
-  },
-  homeButtonWrapper: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#E8F5CC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -30,
-  },
-  homeButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#7A8B99',
+    fontStyle: 'italic',
   },
 });
