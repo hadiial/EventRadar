@@ -1,16 +1,16 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -100,10 +100,12 @@ export default function HomeScreen() {
       {/* BOTTOM NAVIGATION (ABSOLUTE) */}
       <View style={styles.bottomNavContainer}>
         <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navIcon}>
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push("/jadwal")}>
             <Ionicons name="calendar" size={28} color="#FFF" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIcon}>
+          
+          {/* PENYESUAIAN: Menambahkan fungsi onPress untuk navigasi ke bookmarks */}
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/bookmarks-page')}>
             <Ionicons name="bookmark" size={28} color="#FFF" />
           </TouchableOpacity>
 
@@ -114,10 +116,11 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.navIcon}>
+          {/* PENYESUAIAN: Menambahkan fungsi onPress untuk navigasi ke event-form */}
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/event-form' as any)}>
             <Ionicons name="time-outline" size={30} color="#FFF" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navIcon}>
+          <TouchableOpacity style={styles.navIcon} onPress={() => router.push('/user-profile')}>
             <Ionicons name="person" size={28} color="#FFF" />
           </TouchableOpacity>
         </View>
