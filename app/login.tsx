@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,48 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../database';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Error', 'Silakan masukkan email dan password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      // Auth guard di _layout.tsx akan otomatis redirect ke home
+    } catch (error: any) {
+      setLoading(false);
+      let errorMessage = 'Terjadi kesalahan saat masuk.';
+      if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Format email tidak valid.';
+      } else if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/invalid-credential'
+      ) {
+        errorMessage = 'Email atau password salah. Pastikan akun Anda sudah terdaftar.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Terlalu banyak percobaan login. Coba lagi beberapa saat.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Tidak ada koneksi internet. Periksa jaringan Anda.';
+      }
+      Alert.alert('Login Gagal', errorMessage);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -29,11 +66,16 @@ export default function LoginScreen() {
         {/* SECTION 2: FORM INPUT */}
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username/Email</Text>
+            <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
+              placeholder="Masukkan email Anda"
               placeholderTextColor="#7A8B99"
               autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              editable={!loading}
             />
           </View>
 
@@ -41,19 +83,23 @@ export default function LoginScreen() {
             <Text style={styles.label}>Password</Text>
             <TextInput
               style={styles.input}
+              placeholder="Masukkan password Anda"
               placeholderTextColor="#7A8B99"
               secureTextEntry={true}
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
             />
           </View>
 
           {/* SECTION 3: LINKS */}
           <View style={styles.linksContainer}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => Alert.alert('Lupa Password', 'Silakan hubungi admin untuk mereset password Anda.')}>
               <Text style={styles.forgotPassword}>Forgot Password?</Text>
             </TouchableOpacity>
             
             <View style={styles.registerRow}>
-              <Text style={styles.normalText}>Don't Have Account? </Text>
+              <Text style={styles.normalText}>{"Don't Have Account? "}</Text>
               <TouchableOpacity onPress={() => router.push('/register-screen')}>
                 <Text style={styles.registerText}>Register Here</Text>
               </TouchableOpacity>
@@ -63,8 +109,16 @@ export default function LoginScreen() {
 
         {/* SECTION 4: LOGIN BUTTON */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.loginButton}>
-            <Text style={styles.loginButtonText}>MASUK</Text>
+          <TouchableOpacity 
+            style={[styles.loginButton, loading && { opacity: 0.7 }]} 
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>MASUK</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -76,7 +130,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5CC', // Pale yellow-green background color
+    backgroundColor: '#E8F5CC',
   },
   keyboardAvoid: {
     flex: 1,
@@ -90,13 +144,12 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 50,
     fontWeight: '900',
-    color: '#A9D08E', // Green text fill color
+    color: '#A9D08E',
     letterSpacing: 2,
-    // Hack to create a text outline (stroke) in React Native
     textShadowColor: '#2F4454', 
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 1,
-    elevation: 2, // Shadow for Android
+    elevation: 2,
   },
   formContainer: {
     flex: 1,
@@ -116,9 +169,9 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#FFFFFF',
     height: 50,
-    borderRadius: 25, // Create rounded corners (pill shape)
+    borderRadius: 25,
     borderWidth: 1.5,
-    borderColor: '#2F4454', // Dark blue border
+    borderColor: '#2F4454',
     paddingHorizontal: 20,
     fontSize: 14,
     color: '#2F4454',
@@ -147,10 +200,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   buttonContainer: {
-    marginBottom: 50, // Distance of the button from the bottom of the screen
+    marginBottom: 50,
   },
   loginButton: {
-    backgroundColor: '#2F4454', // Dark blue color
+    backgroundColor: '#2F4454',
     height: 55,
     borderRadius: 30,
     justifyContent: 'center',
@@ -159,7 +212,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
-    elevation: 5, // Shadow for Android
+    elevation: 5,
   },
   loginButtonText: {
     color: '#FFFFFF',
