@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { onValue, ref } from 'firebase/database';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -11,9 +13,33 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { auth, database } from '../database';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState<{ username: string; jurusan: string } | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'users/' + user.uid);
+        const unsubscribeDb = onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            setUserProfile({
+              username: data.username || data.fullName || 'User',
+              jurusan: data.jurusan || 'Mahasiswa',
+            });
+          }
+        });
+        return () => unsubscribeDb();
+      } else {
+        setUserProfile(null);
+        // Redirect ditangani oleh _layout.tsx (auth guard)
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -23,9 +49,9 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
-            <View>
-              <Text style={styles.userName}>Yafi Ghazian</Text>
-              <Text style={styles.userMajor}>Teknik Informatika</Text>
+          <View>
+            <Text style={styles.userName}>{userProfile?.username || 'Memuat...'}</Text>
+            <Text style={styles.userMajor}>{userProfile?.jurusan || 'Memuat...'}</Text>
           </View>
         </View>
       </View>

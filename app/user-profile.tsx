@@ -1,15 +1,19 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onValue, ref } from 'firebase/database';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { auth, database } from '../database';
 
 /**
  * UserProfile Component
@@ -18,23 +22,49 @@ import { useRouter } from 'expo-router';
  */
 export default function UserProfile() {
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState<{ username: string; faculty: string; major: string } | null>(null);
 
-  // Mock data utilizing the unified data schema defined in the coding guidelines
-  const userData = {
-    username: 'Salman Hadi',
-    faculty: 'Sains dan Teknologi',
-    major: 'Teknik Informatika',
-    version: '0.0.1',
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'users/' + user.uid);
+        const unsubscribeDb = onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            setUserProfile({
+              username: data.username || data.fullName || 'User',
+              faculty: data.fakultas || 'Sains dan Teknologi',
+              major: data.jurusan || 'Teknik Informatika',
+            });
+          }
+        });
+        return () => unsubscribeDb();
+      } else {
+        setUserProfile(null);
+        router.replace('/login');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleLogout = () => {
+    signOut(auth)
+      .then(() => {
+        router.replace('/login');
+      })
+      .catch((error) => {
+        Alert.alert('Logout Gagal', 'Terjadi kesalahan saat logout.');
+      });
   };
 
   /**
    * Handles navigation routing for the bottom navigation bar items
    * @param {string} route - The target route destination path
    */
-    const handleNavigation = (route: any) => {
-        if (route === '/user-profile') return; 
-        router.push(route as any);
-    };
+  const handleNavigation = (route: any) => {
+    if (route === '/user-profile') return; 
+    router.push(route as any);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -60,24 +90,21 @@ export default function UserProfile() {
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Username</Text>
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputText}>{userData.username}</Text>
-            <TouchableOpacity accessibilityLabel="Edit username">
-              <Ionicons name="pencil" size={18} color="#2F4454" />
-            </TouchableOpacity>
+            <Text style={styles.inputText}>{userProfile?.username || 'Memuat...'}</Text>
           </View>
         </View>
 
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Fakultas</Text>
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputText}>{userData.faculty}</Text>
+            <Text style={styles.inputText}>{userProfile?.faculty || 'Memuat...'}</Text>
           </View>
         </View>
 
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Jurusan</Text>
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputText}>{userData.major}</Text>
+            <Text style={styles.inputText}>{userProfile?.major || 'Memuat...'}</Text>
           </View>
         </View>
 
@@ -118,14 +145,14 @@ export default function UserProfile() {
 
             <View style={styles.settingItem}>
               <Text style={styles.settingText}>Versi</Text>
-              <Text style={styles.versionText}>{userData.version}</Text>
+              <Text style={styles.versionText}>0.0.1</Text>
             </View>
             <View style={styles.divider} />
 
             <TouchableOpacity 
               style={styles.settingItem} 
               accessibilityRole="button"
-              onPress={() => handleNavigation('/login')}
+              onPress={handleLogout}
             >
               <Text style={styles.logoutText}>Logout</Text>
             </TouchableOpacity>
