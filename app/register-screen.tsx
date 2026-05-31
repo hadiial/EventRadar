@@ -38,6 +38,7 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   
   // Step 2 - Profile data
+  const [fullName, setFullName] = useState<string>('');
   const [faculty, setFaculty] = useState<string>('');
   const [major, setMajor] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
@@ -70,55 +71,70 @@ export default function RegisterScreen() {
    * Register the user to Firebase Authentication + save the profile to Realtime Database
    */
   const handleRegister = async () => {
-    if (!faculty.trim() || !major.trim() || !phone.trim()) {
+    if (!fullName.trim() || !faculty.trim() || !major.trim() || !phone.trim()) {
       Alert.alert('Error', 'Semua kolom wajib diisi.');
       return;
     }
 
     setLoading(true);
+
+    // Step 1: Buat akun di Firebase Auth
+    let uid = '';
     try {
-      // 1. Create an account in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email.trim(),
         password
       );
-      const user = userCredential.user;
-
-      // 2. Save profile data to Realtime Database
-      const userRef = ref(database, 'users/' + user.uid);
-      await set(userRef, {
-        uid: user.uid,
-        username: username.trim(),
-        fullName: username.trim(),
-        email: email.trim(),
-        jurusan: major.trim(),
-        fakultas: faculty.trim(),
-        phone: phone.trim(),
-        role: 'user',
-        createdAt: Math.floor(Date.now() / 1000),
-      });
-
+      uid = userCredential.user.uid;
+    } catch (authError: any) {
       setLoading(false);
-      Alert.alert(
-        'Registrasi Berhasil! 🎉',
-        'Akun Anda berhasil dibuat. Silakan login.',
-        [{ text: 'Login Sekarang', onPress: () => router.replace('/login') }]
-      );
-    } catch (error: any) {
-      setLoading(false);
-      let errorMessage = 'Gagal mendaftarkan akun. Coba lagi.';
-      if (error.code === 'auth/email-already-in-use') {
+      let errorMessage = 'Gagal membuat akun. Coba lagi.';
+      if (authError.code === 'auth/email-already-in-use') {
         errorMessage = 'Email sudah terdaftar. Gunakan email lain atau login.';
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (authError.code === 'auth/invalid-email') {
         errorMessage = 'Format email tidak valid.';
-      } else if (error.code === 'auth/weak-password') {
+      } else if (authError.code === 'auth/weak-password') {
         errorMessage = 'Password terlalu lemah (minimal 6 karakter).';
-      } else if (error.code === 'auth/network-request-failed') {
+      } else if (authError.code === 'auth/network-request-failed') {
         errorMessage = 'Tidak ada koneksi internet. Periksa jaringan Anda.';
       }
       Alert.alert('Registrasi Gagal', errorMessage);
+      return;
     }
+
+    // Step 2: Simpan data profil ke Realtime Database
+    try {
+      const userRef = ref(database, 'User/' + uid);
+      await set(userRef, {
+        createdAt: new Date().toISOString(),
+        email: email.trim(),
+        fakultas: faculty.trim(),
+        fullname: fullName.trim(),
+        jurusan: major.trim(),
+        password: password,
+        profilepicture: '',
+        role: 'user',
+        username: username.trim(),
+      });
+    } catch (dbError: any) {
+      console.error('Database write error:', dbError);
+      // Akun sudah terbuat di Auth, tapi DB gagal — tetap lanjut
+      Alert.alert(
+        'Peringatan',
+        'Akun berhasil dibuat, namun profil gagal disimpan. Silakan login dan coba lagi.'
+      );
+      setLoading(false);
+      router.replace('/login');
+      return;
+    }
+
+    setLoading(false);
+    Alert.alert(
+      'Registrasi Berhasil! 🎉',
+      'Akun Anda berhasil dibuat. Silakan login.',
+      [{ text: 'Login Sekarang', onPress: () => router.replace('/login') }]
+    );
   };
 
   return (
@@ -220,6 +236,18 @@ export default function RegisterScreen() {
                 <Ionicons name="arrow-back" size={24} color="#2F4454" />
                 <Text style={styles.backText}>Kembali</Text>
               </TouchableOpacity>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nama Lengkap</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Masukkan nama lengkap Anda"
+                  placeholderTextColor="#7A8B99"
+                  editable={!loading}
+                />
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Fakultas</Text>

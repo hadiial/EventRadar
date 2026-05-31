@@ -20,7 +20,7 @@ import BottomNav from '@/components/bottom-nav';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [userProfile, setUserProfile] = useState<{ username: string; jurusan: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
 
   // --- ADDITIONAL STATE FOR SEARCH BAR ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,13 +43,13 @@ export default function HomeScreen() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const userRef = ref(database, 'users/' + user.uid);
+        const userRef = ref(database, 'User/' + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
           const data = snapshot.val();
           if (data) {
             setUserProfile({
-              username: data.username || data.fullName || 'User',
-              jurusan: data.jurusan || 'Mahasiswa',
+              fullname: data.fullname || data.username || 'User',
+              fakultas: data.fakultas || 'Mahasiswa',
             });
           }
         });
@@ -71,8 +71,8 @@ export default function HomeScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>{userProfile?.username || 'Memuat...'}</Text>
-            <Text style={styles.userMajor}>{userProfile?.jurusan || 'Memuat...'}</Text>
+            <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+            <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
           </View>
         </View>
       </View>

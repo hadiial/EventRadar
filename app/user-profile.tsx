@@ -24,19 +24,23 @@ import BottomNav from '@/components/bottom-nav';
  */
 export default function UserProfile() {
   const router = useRouter();
-  const [userProfile, setUserProfile] = useState<{ username: string; faculty: string; major: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{
+    fullname: string;
+    faculty: string;
+    major: string;
+  } | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const userRef = ref(database, 'users/' + user.uid);
+        const userRef = ref(database, 'User/' + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
           const data = snapshot.val();
           if (data) {
             setUserProfile({
-              username: data.username || data.fullName || 'User',
-              faculty: data.fakultas || 'Sains dan Teknologi',
-              major: data.jurusan || 'Teknik Informatika',
+              fullname: data.fullname || data.username || 'User',
+              faculty: data.fakultas || '',
+              major: data.jurusan || '',
             });
           }
         });
@@ -76,23 +80,27 @@ export default function UserProfile() {
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.scrollContent}
       >
-        {/* PROFILE PICTURE SECTION (BLANK PLACEHOLDER) */}
+        {/* PROFILE PICTURE SECTION */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarPlaceholder} />
-          <TouchableOpacity 
-            style={styles.editAvatarButton} 
-            activeOpacity={0.8}
-            accessibilityLabel="Edit profile picture"
-          >
-            <Ionicons name="pencil" size={16} color="#2F4454" />
-          </TouchableOpacity>
+          <View style={styles.avatarWrapper}>
+            <View style={styles.avatarPlaceholder} />
+            <TouchableOpacity 
+              style={styles.editAvatarButton} 
+              activeOpacity={0.8}
+              accessibilityLabel="Edit profile picture"
+            >
+              <Ionicons name="pencil" size={16} color="#2F4454" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.profileFullname}>{userProfile?.fullname || 'Memuat...'}</Text>
+          <Text style={styles.profileFakultas}>{userProfile?.faculty || 'Memuat...'}</Text>
         </View>
 
         {/* USER ACCOUNT INFORMATION FIELDS */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Username</Text>
+          <Text style={styles.fieldLabel}>Nama Lengkap</Text>
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputText}>{userProfile?.username || 'Memuat...'}</Text>
+            <Text style={styles.inputText}>{userProfile?.fullname || 'Memuat...'}</Text>
           </View>
         </View>
 
@@ -196,6 +204,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
+  profileFullname: {
+    marginTop: 12,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2F4454',
+    textAlign: 'center',
+  },
+  profileFakultas: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#556B7D',
+    textAlign: 'center',
+  },
+  avatarWrapper: {
+    position: 'relative',
+    width: 140,
+    height: 140,
+    marginBottom: 0,
+  },
   avatarPlaceholder: {
     width: 140,
     height: 140,
@@ -206,8 +233,8 @@ const styles = StyleSheet.create({
   },
   editAvatarButton: {
     position: 'absolute',
-    bottom: 5,
-    right: '32%', 
+    bottom: 4,
+    right: 4,
     backgroundColor: '#FFF',
     padding: 6,
     borderRadius: 15,

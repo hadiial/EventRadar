@@ -12,11 +12,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { onValue, ref } from 'firebase/database';
 import BottomNav from '@/components/bottom-nav';
 import { bookmarkStore, BookmarkedEvent } from '../store/bookmarkStore';
+import { auth, database } from '../database';
 
 export default function BookmarksScreen() {
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
 
   // --- ADDITIONAL STATE FOR SEARCH BAR ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,6 +38,26 @@ export default function BookmarksScreen() {
     // Sync saat komponen mount (kalau ada perubahan dari halaman lain)
     setBookmarkedEvents(bookmarkStore.getBookmarked());
     return unsubscribe;
+  }, []);
+
+  // Fetch user profile dari Firebase
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'User/' + user.uid);
+        const unsubscribeDb = onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            setUserProfile({
+              fullname: data.fullname || data.username || 'User',
+              fakultas: data.fakultas || '',
+            });
+          }
+        });
+        return () => unsubscribeDb();
+      }
+    });
+    return () => unsubscribeAuth();
   }, []);
 
   // Filter logic to match typed text with event titles
@@ -54,8 +78,8 @@ export default function BookmarksScreen() {
       <View style={styles.header}>
         <View style={styles.avatarPlaceholder} />
         <View>
-          <Text style={styles.userName}>Salman Hadi</Text>
-          <Text style={styles.userMajor}>Teknik Informatika</Text>
+          <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+          <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
         </View>
       </View>
 

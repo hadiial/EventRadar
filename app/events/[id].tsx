@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Platform, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { onValue, ref } from 'firebase/database';
+import { auth, database } from '../../database';
 import { bookmarkStore } from '../../store/bookmarkStore';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
 
   // Cek apakah event ini sudah di-bookmark
   const [isBookmarked, setIsBookmarked] = useState(() =>
@@ -19,6 +23,26 @@ export default function EventDetailScreen() {
     });
     return unsubscribe;
   }, [id]);
+
+  // Fetch user profile dari Firebase
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'User/' + user.uid);
+        const unsubscribeDb = onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            setUserProfile({
+              fullname: data.fullname || data.username || 'User',
+              fakultas: data.fakultas || '',
+            });
+          }
+        });
+        return () => unsubscribeDb();
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
 
   const handleBookmark = () => {
     bookmarkStore.toggleByEvtId(id ?? '');
@@ -36,8 +60,8 @@ export default function EventDetailScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>Salman Hadi</Text>
-            <Text style={styles.userMajor}>Teknik Informatika</Text>
+            <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+            <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
           </View>
         </View>
       </View>
