@@ -13,7 +13,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../database';
+// --- ADDED: Import ref and get for Realtime Database ---
+import { ref, get } from 'firebase/database';
+// --- ADDED: Import database alongside auth ---
+import { auth, database } from '../database';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -29,8 +32,33 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      // Auth guard in _layout.tsx will automatically redirect to home
+      // 1. Authenticate the user
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      
+      // --- ADDED: ROLE-BASED REDIRECTION LOGIC ---
+      const userId = userCredential.user.uid;
+      const userRef = ref(database, `User/${userId}`); // Make sure the path matches your DB structure
+      const snapshot = await get(userRef);
+
+      if (snapshot.exists()) {
+        const userData = snapshot.val();
+        
+        // 2. Check the user's role and redirect accordingly
+        if (userData.role === 'admin') {
+          console.log('Admin login successful');
+          // Redirect to the admin dashboard (Adjust the route name if needed)
+          router.replace('/admin-dashboard' as any);
+        } else {
+          console.log('User login successful');
+          // Redirect to the standard home screen
+          router.replace('/');
+        }
+      } else {
+        // Fallback: If no extra data is found in DB, just send them to home
+        router.replace('/');
+      }
+      // ------------------------------------------
+
     } catch (error: any) {
       setLoading(false);
       let errorMessage = 'Terjadi kesalahan saat masuk.';
