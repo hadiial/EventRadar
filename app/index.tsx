@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { onValue, ref } from 'firebase/database';
 import React, { useEffect, useState } from 'react';
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -122,7 +123,15 @@ export default function HomeScreen() {
               style={styles.gridItem} 
               onPress={() => router.push(`/events/${event.id}`)}
             >
-              <Text style={styles.eventTitleText}>{event.title}</Text>
+              {event.id === 'EVT-001' ? (
+                <Image
+                  source={require('../assets/images/itFair.png')}
+                  style={styles.gridItemImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.eventTitleText}>{event.title}</Text>
+              )}
             </TouchableOpacity>
           ))
         ) : (
@@ -257,7 +266,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
     justifyContent: 'center', 
-    alignItems: 'center',     
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  gridItemImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
   eventTitleText: {
     color: '#2F4454',
