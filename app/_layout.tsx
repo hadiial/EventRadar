@@ -1,14 +1,17 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import React, { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "../database";
-import { View, ActivityIndicator } from "react-native";
+import { get, ref } from "firebase/database";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { auth, database } from "../database";
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -19,26 +22,80 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (!user) {
+      setUserRole(null);
+      setRoleLoading(false);
+      return;
+    }
 
-    // Halaman yang bisa diakses tanpa login
+    setRoleLoading(true);
+    const userRef = ref(database, "User/" + user.uid);
+
+    get(userRef)
+      .then((snapshot) => {
+        const data = snapshot.val();
+        if (data && data.role) {
+          setUserRole(data.role);
+        } else {
+          setUserRole("user");
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching user role:", error);
+        setUserRole("user");
+      })
+      .finally(() => {
+        setRoleLoading(false);
+      });
+  }, [user]);
+
+  useEffect(() => {
+    if (loading || roleLoading) return;
+
     const publicRoutes = ["login", "register-screen"];
     const inPublicRoute = publicRoutes.some((route) =>
-      segments.includes(route as never)
+      segments.includes(route as never),
     );
 
     if (!user && !inPublicRoute) {
-      // Belum login dan bukan di halaman publik → redirect ke login
       router.replace("/login");
-    } else if (user && inPublicRoute) {
-      // Sudah login tapi masih di halaman login/register → redirect ke home
-      router.replace("/");
+      return;
     }
-  }, [user, loading, segments]);
+
+    if (user && inPublicRoute) {
+      if (userRole === "admin") {
+        router.replace("/admin");
+      } else {
+        router.replace("/");
+      }
+      return;
+    }
+
+    if (user && userRole) {
+      const isAdminRoute = segments.includes("admin" as never);
+      const isRootHome =
+        segments[0] === undefined || segments.includes("index" as never);
+
+      if (userRole === "admin" && isRootHome) {
+        router.replace("/admin");
+      }
+
+      if (userRole !== "admin" && isAdminRoute) {
+        router.replace("/");
+      }
+    }
+  }, [user, userRole, loading, roleLoading, segments]);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#E8F5CC" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#E8F5CC",
+        }}
+      >
         <ActivityIndicator size="large" color="#2F4454" />
       </View>
     );
