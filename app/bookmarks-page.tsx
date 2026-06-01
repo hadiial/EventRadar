@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,33 +12,62 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { onValue, ref } from 'firebase/database';
 import BottomNav from '@/components/bottom-nav';
+import { bookmarkStore, BookmarkedEvent } from '../store/bookmarkStore';
+import { auth, database } from '../database';
 
 export default function BookmarksScreen() {
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
 
   // --- ADDITIONAL STATE FOR SEARCH BAR ---
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mock data for the bookmarked events list based on the mockup
-  const [bookmarkedEvents, setBookmarkedEvents] = useState([
-    { id: '1', title: 'Seminar IT', date: '30 Febuari 2024', status: 'Terdaftar' },
-    { id: '2', title: 'Lomba Futsal', date: '3 Maret 2024', status: 'Belum Terdaftar' },
-    { id: '3', title: 'Workshop UI/UX', date: '14 Maret 2024', status: 'Belum Terdaftar' },
-    { id: '4', title: 'Bazar Kampus', date: '30 Maret 2024', status: 'Terdaftar' },
-    { id: '5', title: 'Bedah Buku', date: '30 Febuari 2024', status: 'Terdaftar' },
-    { id: '6', title: 'Pentas Seni', date: '30 Febuari 2024', status: 'Terdaftar' },
-  ]);
+  // State bookmark diambil dari singleton store agar persisten
+  const [bookmarkedEvents, setBookmarkedEvents] = useState<BookmarkedEvent[]>(
+    () => bookmarkStore.getBookmarked()
+  );
+
+  // Subscribe ke perubahan store
+  useEffect(() => {
+    const unsubscribe = bookmarkStore.subscribe(() => {
+      setBookmarkedEvents(bookmarkStore.getBookmarked());
+    });
+    // Sync saat komponen mount (kalau ada perubahan dari halaman lain)
+    setBookmarkedEvents(bookmarkStore.getBookmarked());
+    return unsubscribe;
+  }, []);
+
+  // Fetch user profile dari Firebase
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'User/' + user.uid);
+        const unsubscribeDb = onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            setUserProfile({
+              fullname: data.fullname || data.username || 'User',
+              fakultas: data.fakultas || '',
+            });
+          }
+        });
+        return () => unsubscribeDb();
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
 
   // Filter logic to match typed text with event titles
   const filteredEvents = bookmarkedEvents.filter((event) =>
     event.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Simulated function to handle bookmark deletion
+  // Hapus satu event dari bookmark
   const handleDelete = (id: string) => {
-    const remainingEvents = bookmarkedEvents.filter(event => event.id !== id);
-    setBookmarkedEvents(remainingEvents);
+    bookmarkStore.remove(id);
   };
 
   return (
@@ -49,8 +78,8 @@ export default function BookmarksScreen() {
       <View style={styles.header}>
         <View style={styles.avatarPlaceholder} />
         <View>
-          <Text style={styles.userName}>Salman Hadi</Text>
-          <Text style={styles.userMajor}>Teknik Informatika</Text>
+          <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+          <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
         </View>
       </View>
 
@@ -71,15 +100,14 @@ export default function BookmarksScreen() {
             style={styles.searchInput}
             placeholder="Search..."
             placeholderTextColor="#7A8B99"
-            value={searchQuery} // Connecting text input value to state
-            onChangeText={setSearchQuery} // Updating state every time the user types
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
           <Ionicons name="search" size={20} color="#2F4454" />
         </View>
 
         {/* BOOKMARKED EVENTS LIST */}
         <View style={styles.listContainer}>
-          {/* Filtered event data loop */}
           {filteredEvents.length > 0 ? (
             filteredEvents.map((item) => (
               <View key={item.id} style={styles.card}>
@@ -104,7 +132,11 @@ export default function BookmarksScreen() {
               </View>
             ))
           ) : (
-            <Text style={styles.noDataText}>Bookmark tidak ditemukan</Text>
+            <Text style={styles.noDataText}>
+              {bookmarkedEvents.length === 0
+                ? 'Belum ada bookmark. Tambahkan event dari halaman utama!'
+                : 'Bookmark tidak ditemukan'}
+            </Text>
           )}
         </View>
 
@@ -119,7 +151,7 @@ export default function BookmarksScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5CC', // Pale yellow-green background
+    backgroundColor: '#E8F5CC',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   header: {
@@ -133,7 +165,7 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     borderRadius: 22.5,
-    backgroundColor: '#D1D5DB', // Light gray for avatar placeholder
+    backgroundColor: '#D1D5DB',
     marginRight: 15,
   },
   userName: {
@@ -147,7 +179,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 130, // Extra padding to prevent overlap with the bottom navigation bar
+    paddingBottom: 130,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -179,10 +211,10 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flexDirection: 'column',
-    gap: 15, // Gap between cards
+    gap: 15,
   },
   card: {
-    backgroundColor: '#A9D08E', // Light green for the card background
+    backgroundColor: '#A9D08E',
     borderRadius: 15,
     padding: 10,
     flexDirection: 'row',
@@ -192,7 +224,7 @@ const styles = StyleSheet.create({
   cardImagePlaceholder: {
     width: 90,
     height: '100%',
-    backgroundColor: '#2F4454', // Dark blue for the image placeholder box
+    backgroundColor: '#2F4454',
     borderRadius: 10,
     marginRight: 15,
   },

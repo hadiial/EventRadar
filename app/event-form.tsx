@@ -10,10 +10,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import BottomNav from '@/components/bottom-nav';
+import { database } from '../database';
+import { ref, get, child, set } from 'firebase/database';
 
 /**
  * EventForm Component
@@ -21,20 +25,84 @@ import BottomNav from '@/components/bottom-nav';
  */
 export default function EventFormScreen() {
   const router = useRouter();
-  
+
   // State to manage form transition (Step 1 or Step 2)
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ---- STEP 1 FIELDS ----
+  const [title, setTitle] = useState('');
+  const [createdBy, setCreatedBy] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [posterUrl, setPosterUrl] = useState('');
+
+  // ---- STEP 2 FIELDS ----
+  const [createdAt, setCreatedAt] = useState('');   // Periode Mulai
+  const [date, setDate] = useState('');              // Periode Akhir
+  const [location, setLocation] = useState('');
+  const [registrationLink, setRegistrationLink] = useState('');
+  const [phone, setPhone] = useState(''); // Nomor telepon
+
+  /**
+   * Hitung event_id_(n) berdasarkan jumlah data yang sudah ada di /events
+   */
+  const getNextEventKey = async (): Promise<string> => {
+    const dbRef = ref(database);
+    const snapshot = await get(child(dbRef, 'events'));
+    const existingCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+    return `event_id_${existingCount + 1}`;
+  };
+
+  /**
+   * Kirim data event ke Firebase Realtime Database
+   */
+  const submitToFirebase = async () => {
+    setIsLoading(true);
+    try {
+      const eventKey = await getNextEventKey();
+      const eventsRef = ref(database, `events/${eventKey}`);
+
+      const eventData = {
+        'Nama Event': title,
+        'Nama penyelenggara': createdBy,
+        'Kategori Event': category,
+        'Deskripsi event': description,
+        'upload poster': posterUrl,
+        'Periode mulai': createdAt,
+        'periode akhir': date,
+        'lokasi': location,
+        'Link pendaftaran': registrationLink,
+        'phone': phone,
+      };
+
+      await set(eventsRef, eventData);
+
+      Alert.alert('Berhasil!', 'Event berhasil dikirim.', [
+        { text: 'OK', onPress: () => router.replace('/') },
+      ]);
+    } catch (error) {
+      console.error('Error submitting event:', error);
+      Alert.alert('Gagal', 'Terjadi kesalahan saat mengirim event. Coba lagi.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   /**
    * Handles the 'Next' button logic
    */
   const handleNext = () => {
     if (currentStep === 1) {
+      // Validasi step 1
+      if (!title.trim() || !createdBy.trim() || !category.trim()) {
+        Alert.alert('Lengkapi Form', 'Mohon isi Nama Event, Nama Penyelenggara, dan Kategori Event.');
+        return;
+      }
       setCurrentStep(2);
     } else {
-      // Final submission logic would go here
-      console.log('Event submitted successfully');
-      router.replace('/'); 
+      // Final submission
+      submitToFirebase();
     }
   };
 
@@ -60,17 +128,35 @@ export default function EventFormScreen() {
             <View style={styles.formWrapper}>
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Nama Event</Text>
-                <TextInput style={styles.textInput} />
+                <TextInput
+                  style={styles.textInput}
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="Masukkan nama event"
+                  placeholderTextColor="#A0A0A0"
+                />
               </View>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Nama Penyelenggara</Text>
-                <TextInput style={styles.textInput} />
+                <TextInput
+                  style={styles.textInput}
+                  value={createdBy}
+                  onChangeText={setCreatedBy}
+                  placeholder="Masukkan nama penyelenggara"
+                  placeholderTextColor="#A0A0A0"
+                />
               </View>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Kategori Event</Text>
-                <TextInput style={styles.textInput} />
+                <TextInput
+                  style={styles.textInput}
+                  value={category}
+                  onChangeText={setCategory}
+                  placeholder="Masukkan kategori event"
+                  placeholderTextColor="#A0A0A0"
+                />
               </View>
 
               <View style={styles.inputBox}>
@@ -79,14 +165,24 @@ export default function EventFormScreen() {
                   style={[styles.textInput, styles.textArea]} 
                   multiline 
                   numberOfLines={4}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Masukkan deskripsi event"
+                  placeholderTextColor="#A0A0A0"
+                  textAlignVertical="top"
                 />
               </View>
 
               <View style={styles.inputBox}>
-                <Text style={styles.inputLabel}>Upload Poster (Max 4 item)</Text>
-                <TouchableOpacity style={styles.uploadContainer}>
-                  <Ionicons name="push-outline" size={36} color="#4A645C" />
-                </TouchableOpacity>
+                <Text style={styles.inputLabel}>Upload Poster (URL / Max 4 item)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={posterUrl}
+                  onChangeText={setPosterUrl}
+                  placeholder="Masukkan URL poster"
+                  placeholderTextColor="#A0A0A0"
+                  autoCapitalize="none"
+                />
               </View>
             </View>
           )}
@@ -102,35 +198,77 @@ export default function EventFormScreen() {
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Periode Mulai</Text>
-                <TextInput style={styles.textInput} placeholder="DD MM, YY" placeholderTextColor="#A0A0A0" />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="DD MM, YY"
+                  placeholderTextColor="#A0A0A0"
+                  value={createdAt}
+                  onChangeText={setCreatedAt}
+                />
               </View>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Periode Akhir</Text>
-                <TextInput style={styles.textInput} placeholder="DD MM, YY" placeholderTextColor="#A0A0A0" />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="DD MM, YY"
+                  placeholderTextColor="#A0A0A0"
+                  value={date}
+                  onChangeText={setDate}
+                />
               </View>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Lokasi</Text>
-                <TextInput style={styles.textInput} />
+                <TextInput
+                  style={styles.textInput}
+                  value={location}
+                  onChangeText={setLocation}
+                  placeholder="Masukkan lokasi event"
+                  placeholderTextColor="#A0A0A0"
+                />
               </View>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Nomor Telepon</Text>
-                <TextInput style={styles.textInput} keyboardType="phone-pad" />
+                <TextInput
+                  style={styles.textInput}
+                  keyboardType="phone-pad"
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Masukkan nomor telepon"
+                  placeholderTextColor="#A0A0A0"
+                />
               </View>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Link Pendaftaran</Text>
-                <TextInput style={styles.textInput} autoCapitalize="none" />
+                <TextInput
+                  style={styles.textInput}
+                  autoCapitalize="none"
+                  value={registrationLink}
+                  onChangeText={setRegistrationLink}
+                  placeholder="https://..."
+                  placeholderTextColor="#A0A0A0"
+                />
               </View>
             </View>
           )}
 
           {/* ACTION BUTTON */}
           <View style={styles.footerButton}>
-            <TouchableOpacity style={styles.submitBtn} onPress={handleNext}>
-              <Text style={styles.submitBtnText}>Next</Text>
+            <TouchableOpacity
+              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+              onPress={handleNext}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>
+                  {currentStep === 1 ? 'Next' : 'Submit'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -195,6 +333,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2F4454',
   },
+  disabledInput: {
+    backgroundColor: '#E0E0E0',
+    borderColor: '#BDBDBD',
+  },
   textArea: {
     height: 100,
     textAlignVertical: 'top',
@@ -230,6 +372,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
   },
   submitBtnText: {
     color: '#FFF',

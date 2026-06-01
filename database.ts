@@ -1,7 +1,7 @@
 // database.ts
 // Firebase SDK v10+ configuration and initialization for Event Radar
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore';
@@ -14,7 +14,7 @@ const firebaseConfig = {
   storageBucket: "eventradar26.firebasestorage.app",
   messagingSenderId: "194742602378",
   appId: "1:194742602378:web:31cbd7e603c0cb2e933b73",
-  measurementId: "G-XD3S9D0E52",
+  measurementId: "G-XD3S9D0E52"
 };
 
 // Guard agar tidak double-initialize saat hot reload

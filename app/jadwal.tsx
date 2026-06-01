@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { onAuthStateChanged } from 'firebase/auth';
+import { onValue, ref } from 'firebase/database';
+import React, { useState, useEffect } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -12,24 +14,28 @@ import {
   Platform,
 } from "react-native";
 import BottomNav from "@/components/bottom-nav";
+import { bookmarkStore } from "../store/bookmarkStore";
+import { auth, database } from '../database';
 
+// Kotak 1 & 2 adalah EVT-001 dan EVT-002 (menggunakan bookmark id '1' & '2')
+// Sisanya adalah event dummy biasa (tanpa koneksi ke bookmarkStore)
 const DUMMY_EVENTS = [
-  { id: "1",  day: "12", month: "Desember",  year: "2025", name: "Workshop UI/UX Design" },
-  { id: "2",  day: "15", month: "Januari",   year: "2026", name: "Seminar Kecerdasan Buatan" },
-  { id: "3",  day: "20", month: "Februari",  year: "2026", name: "Hackathon Nasional" },
-  { id: "4",  day: "03", month: "Maret",     year: "2026", name: "Lomba Desain Grafis" },
-  { id: "5",  day: "08", month: "April",     year: "2026", name: "Tech Talk 2026" },
-  { id: "6",  day: "25", month: "Mei",       year: "2026", name: "Career Fair ITB" },
-  { id: "7",  day: "10", month: "Juni",      year: "2026", name: "Olimpiade Sains" },
-  { id: "8",  day: "17", month: "Juli",      year: "2026", name: "Festival Budaya" },
-  { id: "9",  day: "02", month: "Agustus",   year: "2026", name: "Konferensi Teknologi" },
-  { id: "10", day: "14", month: "September", year: "2026", name: "Expo Startup Muda" },
-  { id: "11", day: "21", month: "Oktober",   year: "2026", name: "Webinar Data Science" },
-  { id: "12", day: "05", month: "November",  year: "2026", name: "Pelatihan React Native" },
-  { id: "13", day: "11", month: "Desember",  year: "2026", name: "Kompetisi Robotika" },
-  { id: "14", day: "19", month: "Januari",   year: "2027", name: "Forum Inovasi Digital" },
-  { id: "15", day: "27", month: "Februari",  year: "2027", name: "Bootcamp UI/UX" },
-  { id: "16", day: "09", month: "Maret",     year: "2027", name: "Seminar Keamanan Siber" },
+  { id: "1",  evtId: "EVT-001", day: "30", month: "Februari",  year: "2024", name: "Seminar IT" },
+  { id: "2",  evtId: "EVT-002", day: "03", month: "Maret",     year: "2024", name: "Lomba Futsal" },
+  { id: "3",  evtId: null,      day: "20", month: "Februari",  year: "2026", name: "Hackathon Nasional" },
+  { id: "4",  evtId: null,      day: "03", month: "Maret",     year: "2026", name: "Lomba Desain Grafis" },
+  { id: "5",  evtId: null,      day: "08", month: "April",     year: "2026", name: "Tech Talk 2026" },
+  { id: "6",  evtId: null,      day: "25", month: "Mei",       year: "2026", name: "Career Fair ITB" },
+  { id: "7",  evtId: null,      day: "10", month: "Juni",      year: "2026", name: "Olimpiade Sains" },
+  { id: "8",  evtId: null,      day: "17", month: "Juli",      year: "2026", name: "Festival Budaya" },
+  { id: "9",  evtId: null,      day: "02", month: "Agustus",   year: "2026", name: "Konferensi Teknologi" },
+  { id: "10", evtId: null,      day: "14", month: "September", year: "2026", name: "Expo Startup Muda" },
+  { id: "11", evtId: null,      day: "21", month: "Oktober",   year: "2026", name: "Webinar Data Science" },
+  { id: "12", evtId: null,      day: "05", month: "November",  year: "2026", name: "Pelatihan React Native" },
+  { id: "13", evtId: null,      day: "11", month: "Desember",  year: "2026", name: "Kompetisi Robotika" },
+  { id: "14", evtId: null,      day: "19", month: "Januari",   year: "2027", name: "Forum Inovasi Digital" },
+  { id: "15", evtId: null,      day: "27", month: "Februari",  year: "2027", name: "Bootcamp UI/UX" },
+  { id: "16", evtId: null,      day: "09", month: "Maret",     year: "2027", name: "Seminar Keamanan Siber" },
 ];
 
 const ITEMS_PER_PAGE = 8;
@@ -37,6 +43,34 @@ const ITEMS_PER_PAGE = 8;
 export default function JadwalScreen() {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
+
+  // Subscribe ke bookmarkStore agar outline biru update real-time
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const unsubscribe = bookmarkStore.subscribe(() => forceUpdate((n) => n + 1));
+    return unsubscribe;
+  }, []);
+
+  // Fetch user profile dari Firebase
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'User/' + user.uid);
+        const unsubscribeDb = onValue(userRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            setUserProfile({
+              fullname: data.fullname || data.username || 'User',
+              fakultas: data.fakultas || '',
+            });
+          }
+        });
+        return () => unsubscribeDb();
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
 
   const totalPages = Math.ceil(DUMMY_EVENTS.length / ITEMS_PER_PAGE);
   const pagedEvents = DUMMY_EVENTS.slice(
@@ -53,8 +87,8 @@ export default function JadwalScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>Salman Hadi</Text>
-            <Text style={styles.userMajor}>Teknik Informatika</Text>
+            <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+            <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
           </View>
         </View>
       </View>
@@ -71,27 +105,46 @@ export default function JadwalScreen() {
 
         {/* GRID */}
         <View style={styles.gridContainer}>
-          {pagedEvents.map((event, index) => (
-            <TouchableOpacity
-              key={event.id}
-              style={[styles.gridItem, index === 3 && styles.gridItemActive]}
-              onPress={() => router.push("/events/[id]")}
-            >
-              <View style={styles.gridItemTop}>
-                <View>
-                  <View style={styles.gridItemDayRow}>
-                    <Text style={styles.gridItemDay}>{event.day}</Text>
-                    <Text style={styles.gridItemYear}>{event.year}</Text>
+          {pagedEvents.map((event) => {
+            // Cek apakah event ini di-bookmark (hanya berlaku untuk event dengan evtId)
+            const isBookmarked = event.evtId
+              ? bookmarkStore.isBookmarkedByEvtId(event.evtId)
+              : false;
+
+            // Navigasi ke detail jika punya evtId, atau ke placeholder
+            const handlePress = () => {
+              if (event.evtId) {
+                router.push(`/events/${event.evtId}`);
+              } else {
+                router.push("/events/[id]");
+              }
+            };
+
+            return (
+              <TouchableOpacity
+                key={event.id}
+                style={[
+                  styles.gridItem,
+                  isBookmarked && styles.gridItemBookmarked,
+                ]}
+                onPress={handlePress}
+              >
+                <View style={styles.gridItemTop}>
+                  <View>
+                    <View style={styles.gridItemDayRow}>
+                      <Text style={styles.gridItemDay}>{event.day}</Text>
+                      <Text style={styles.gridItemYear}>{event.year}</Text>
+                    </View>
+                    <Text style={styles.gridItemMonth}>{event.month}</Text>
                   </View>
-                  <Text style={styles.gridItemMonth}>{event.month}</Text>
+                  <View style={styles.gridItemImageBox} />
                 </View>
-                <View style={styles.gridItemImage} />
-              </View>
-              <Text style={styles.gridItemName} numberOfLines={1}>
-                {event.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text style={styles.gridItemName} numberOfLines={1}>
+                  {event.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* PAGINATION */}
@@ -205,10 +258,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     padding: 8,
     justifyContent: "space-between",
+    // Tidak ada border/outline secara default
   },
-  gridItemActive: {
+  // Outline biru muncul hanya jika event di-bookmark
+  gridItemBookmarked: {
     borderWidth: 2,
-    borderColor: "#2F4454",
+    borderColor: "#1565C0",
   },
   gridItemTop: {
     flexDirection: "row",
@@ -234,7 +289,7 @@ const styles = StyleSheet.create({
     color: "#2F4454",
     marginTop: 1,
   },
-  gridItemImage: {
+  gridItemImageBox: {
     width: 36,
     height: 36,
     borderRadius: 6,

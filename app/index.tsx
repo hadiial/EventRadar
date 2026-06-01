@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { onValue, ref } from 'firebase/database';
 import React, { useEffect, useState } from 'react';
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -19,7 +20,7 @@ import BottomNav from '@/components/bottom-nav';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [userProfile, setUserProfile] = useState<{ username: string; jurusan: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
 
   // --- ADDITIONAL STATE FOR SEARCH BAR ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,13 +43,13 @@ export default function HomeScreen() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const userRef = ref(database, 'users/' + user.uid);
+        const userRef = ref(database, 'User/' + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
           const data = snapshot.val();
           if (data) {
             setUserProfile({
-              username: data.username || data.fullName || 'User',
-              jurusan: data.jurusan || 'Mahasiswa',
+              fullname: data.fullname || data.username || 'User',
+              fakultas: data.fakultas || 'Mahasiswa',
             });
           }
         });
@@ -70,8 +71,8 @@ export default function HomeScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>{userProfile?.username || 'Memuat...'}</Text>
-            <Text style={styles.userMajor}>{userProfile?.jurusan || 'Memuat...'}</Text>
+            <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+            <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
           </View>
         </View>
       </View>
@@ -122,7 +123,15 @@ export default function HomeScreen() {
               style={styles.gridItem} 
               onPress={() => router.push(`/events/${event.id}`)}
             >
-              <Text style={styles.eventTitleText}>{event.title}</Text>
+              {event.id === 'EVT-001' ? (
+                <Image
+                  source={require('../assets/images/itFair.png')}
+                  style={styles.gridItemImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.eventTitleText}>{event.title}</Text>
+              )}
             </TouchableOpacity>
           ))
         ) : (
@@ -257,7 +266,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
     justifyContent: 'center', 
-    alignItems: 'center',     
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  gridItemImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
   eventTitleText: {
     color: '#2F4454',
