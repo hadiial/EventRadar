@@ -1,23 +1,23 @@
 // File: app/admin-schedule.tsx
 
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { onAuthStateChanged } from "firebase/auth";
+import { onValue, ref } from "firebase/database";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
   FlatList,
-  TouchableOpacity,
-  StatusBar,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { onAuthStateChanged } from 'firebase/auth';
-import { ref, onValue } from 'firebase/database';
-import { auth, database } from '../database';
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { auth, database } from "../database";
 
-import AdminBottomNav from '@/components/admin-bottom-nav';
+import AdminBottomNav from "@/components/admin-bottom-nav";
 
 /**
  * Interface for Event Schedule Data
@@ -33,12 +33,50 @@ interface ScheduleItem {
 
 // Dummy data for initial UI setup.
 const DUMMY_SCHEDULE: ScheduleItem[] = [
-  { id: '1', dateNum: '12', year: '2025', month: 'Desember', eventName: 'Nama Event' },
-  { id: '2', dateNum: '12', year: '2025', month: 'Desember', eventName: 'Nama Event' },
-  { id: '3', dateNum: '12', year: '2025', month: 'Desember', eventName: 'Nama Event' },
-  { id: '4', dateNum: '12', year: '2025', month: 'Desember', eventName: 'Nama Event', isHighlighted: true },
-  { id: '5', dateNum: '12', year: '2025', month: 'Desember', eventName: 'Nama Event', isHighlighted: true },
-  { id: '6', dateNum: '12', year: '2025', month: 'Desember', eventName: 'Nama Event' },
+  {
+    id: "1",
+    dateNum: "12",
+    year: "2025",
+    month: "Desember",
+    eventName: "Nama Event",
+  },
+  {
+    id: "2",
+    dateNum: "12",
+    year: "2025",
+    month: "Desember",
+    eventName: "Nama Event",
+  },
+  {
+    id: "3",
+    dateNum: "12",
+    year: "2025",
+    month: "Desember",
+    eventName: "Nama Event",
+  },
+  {
+    id: "4",
+    dateNum: "12",
+    year: "2025",
+    month: "Desember",
+    eventName: "Nama Event",
+    isHighlighted: true,
+  },
+  {
+    id: "5",
+    dateNum: "12",
+    year: "2025",
+    month: "Desember",
+    eventName: "Nama Event",
+    isHighlighted: true,
+  },
+  {
+    id: "6",
+    dateNum: "12",
+    year: "2025",
+    month: "Desember",
+    eventName: "Nama Event",
+  },
 ];
 
 /**
@@ -48,9 +86,9 @@ const DUMMY_SCHEDULE: ScheduleItem[] = [
  */
 export default function AdminScheduleScreen() {
   const router = useRouter();
-  
+
   // State for Admin Name
-  const [adminName, setAdminName] = useState('Admin');
+  const [adminName, setAdminName] = useState("Admin");
   // State for Pagination (Simulated)
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -60,7 +98,7 @@ export default function AdminScheduleScreen() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const userRef = ref(database, 'User/' + user.uid);
+        const userRef = ref(database, "User/" + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
           const data = snapshot.val();
           if (data && data.fullname) {
@@ -79,8 +117,22 @@ export default function AdminScheduleScreen() {
    * Renders a single event card within the FlatList grid.
    */
   const renderScheduleCard = ({ item }: { item: ScheduleItem }) => (
-    <View style={[styles.card, item.isHighlighted && styles.cardHighlighted]}>
-      
+    <TouchableOpacity
+      style={[styles.card, item.isHighlighted && styles.cardHighlighted]}
+      activeOpacity={0.8}
+      onPress={() =>
+        router.push({
+          pathname: "/admin-schedule-detail" as any,
+          params: {
+            id: item.id,
+            name: item.eventName,
+            day: item.dateNum,
+            month: item.month,
+            year: item.year,
+          },
+        })
+      }
+    >
       {/* Top Section: Date & Blue Square */}
       <View style={styles.cardHeader}>
         <View style={styles.dateContainer}>
@@ -97,11 +149,25 @@ export default function AdminScheduleScreen() {
       <Text style={styles.eventName}>{item.eventName}</Text>
 
       {/* Bottom Section: Edit Link */}
-      <TouchableOpacity style={styles.editLinkContainer}>
+      <TouchableOpacity
+        style={styles.editLinkContainer}
+        onPress={(e) => {
+          e.stopPropagation?.();
+          router.push({
+            pathname: "/jadwal-detail" as any,
+            params: {
+              id: item.id,
+              name: item.eventName,
+              day: item.dateNum,
+              month: item.month,
+              year: item.year,
+            },
+          });
+        }}
+      >
         <Text style={styles.editLinkText}>Ubah setelan event</Text>
       </TouchableOpacity>
-      
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -129,21 +195,28 @@ export default function AdminScheduleScreen() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        
         // PAGINATION FOOTER
         ListFooterComponent={
           <View style={styles.paginationContainer}>
             <TouchableOpacity>
               <Ionicons name="chevron-back" size={24} color="#2F4454" />
             </TouchableOpacity>
-            
+
             {[1, 2, 3, 4].map((page) => (
-              <TouchableOpacity 
-                key={page} 
-                style={[styles.pageDot, currentPage === page && styles.pageDotActive]}
+              <TouchableOpacity
+                key={page}
+                style={[
+                  styles.pageDot,
+                  currentPage === page && styles.pageDotActive,
+                ]}
                 onPress={() => setCurrentPage(page)}
               >
-                <Text style={[styles.pageDotText, currentPage === page && styles.pageDotTextActive]}>
+                <Text
+                  style={[
+                    styles.pageDotText,
+                    currentPage === page && styles.pageDotTextActive,
+                  ]}
+                >
                   {page}
                 </Text>
               </TouchableOpacity>
@@ -158,7 +231,6 @@ export default function AdminScheduleScreen() {
 
       {/* ADMIN BOTTOM NAVIGATION */}
       <AdminBottomNav />
-
     </SafeAreaView>
   );
 }
@@ -166,13 +238,13 @@ export default function AdminScheduleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5CC',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    backgroundColor: "#E8F5CC",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   // HEADER STYLES
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
@@ -181,25 +253,25 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     borderRadius: 22.5,
-    backgroundColor: '#C4C4C4',
+    backgroundColor: "#C4C4C4",
     marginRight: 15,
   },
   adminName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
   },
   // TITLE STYLES
   titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 15,
   },
   pageTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
     marginLeft: 10,
   },
   // LIST STYLES
@@ -208,79 +280,79 @@ const styles = StyleSheet.create({
     paddingBottom: 110, // Ensure space for BottomNav and Pagination
   },
   row: {
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     marginBottom: 15,
   },
   // CARD STYLES
   card: {
-    width: '48%',
-    backgroundColor: '#A9D08E',
+    width: "48%",
+    backgroundColor: "#A9D08E",
     borderRadius: 15,
     padding: 12,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     minHeight: 130,
   },
   cardHighlighted: {
     borderWidth: 2,
-    borderColor: '#2F4454',
+    borderColor: "#2F4454",
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 10,
   },
   dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   dateNum: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
     marginRight: 5,
     lineHeight: 32,
   },
   yearMonthContainer: {
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   dateYear: {
     fontSize: 14,
-    color: '#2F4454',
+    color: "#2F4454",
     lineHeight: 16,
   },
   dateMonth: {
     fontSize: 12,
-    color: '#2F4454',
-    fontWeight: '500',
+    color: "#2F4454",
+    fontWeight: "500",
     lineHeight: 14,
   },
   blueSquare: {
     width: 35,
     height: 35,
-    backgroundColor: '#2F4454',
+    backgroundColor: "#2F4454",
     borderRadius: 6,
   },
   eventName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
     marginBottom: 10,
   },
   editLinkContainer: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   editLinkText: {
     fontSize: 10,
-    color: '#2F4454',
-    textDecorationLine: 'underline',
-    fontWeight: '600',
+    color: "#2F4454",
+    textDecorationLine: "underline",
+    fontWeight: "600",
   },
   // PAGINATION STYLES
   paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 20,
     marginBottom: 10,
   },
@@ -288,20 +360,20 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#A9D08E',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#A9D08E",
+    justifyContent: "center",
+    alignItems: "center",
     marginHorizontal: 5,
   },
   pageDotActive: {
-    backgroundColor: '#2F4454',
+    backgroundColor: "#2F4454",
   },
   pageDotText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   pageDotTextActive: {
-    color: '#FFF',
+    color: "#FFF",
   },
 });
