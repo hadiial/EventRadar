@@ -23,9 +23,8 @@ export default function AdminBottomNav() {
     if (pathname === route) return;
 
     // --- TEMPORARY LOCK MECHANISM ---
-    // Array of routes that have been fully developed and are safe to access.
-    // ADDED: '/admin-jadwal' is now unlocked!
-    const readyPages = ['/admin-dashboard', '/admin-bookmarks', '/admin-schedule'];
+    // ADDED: '/admin-profile' is now unlocked!
+    const readyPages = ['/admin-dashboard', '/admin-bookmarks', '/admin-schedule', '/admin-profile'];
 
     // If the requested route is NOT in the readyPages array, show a 'Coming Soon' alert.
     if (!readyPages.includes(route)) {
