@@ -24,8 +24,8 @@ export default function AdminBottomNav() {
 
     // --- TEMPORARY LOCK MECHANISM ---
     // Array of routes that have been fully developed and are safe to access.
-    // ADDED: '/admin-bookmarks' is now unlocked!
-    const readyPages = ['/admin-dashboard', '/admin-bookmarks']; 
+    // ADDED: '/admin-jadwal' is now unlocked!
+    const readyPages = ['/admin-dashboard', '/admin-bookmarks', '/admin-schedule'];
 
     // If the requested route is NOT in the readyPages array, show a 'Coming Soon' alert.
     if (!readyPages.includes(route)) {
@@ -47,8 +47,8 @@ export default function AdminBottomNav() {
         
         {/* SCHEDULE BUTTON */}
         <TouchableOpacity 
-          style={[styles.navIcon, pathname === '/admin-jadwal' && styles.activeNavIcon]} 
-          onPress={() => handleNavigation('/admin-jadwal')}
+          style={[styles.navIcon, pathname === '/admin-schedule' && styles.activeNavIcon]} 
+          onPress={() => handleNavigation('/admin-schedule')}
           accessibilityLabel="Go to schedule"
         >
           <Ionicons name="calendar" size={28} color="#FFF" />
