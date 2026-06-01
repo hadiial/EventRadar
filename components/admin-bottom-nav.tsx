@@ -75,14 +75,17 @@ export default function AdminBottomNav() {
         </View>
 
         {/* CREATE EVENT / CURATION BUTTON */}
-        <TouchableOpacity 
-          style={[styles.navIcon, pathname === '/pengajuan' && styles.activeNavIcon]} 
-          onPress={() => handleNavigation('/pengajuan')}
-          accessibilityLabel="Go to event curation"
+        <TouchableOpacity
+          style={[
+            styles.navIcon,
+            pathname === "/event-form" && styles.activeNavIcon,
+          ]}
+          onPress={() => handleNavigation("/event-form")}
+          accessibilityLabel="Go to create event"
         >
           <Ionicons name="add-circle-outline" size={32} color="#FFF" />
         </TouchableOpacity>
-        
+
         {/* USER PROFILE BUTTON */}
         <TouchableOpacity 
           style={[styles.navIcon, pathname === '/admin-profile' && styles.activeNavIcon]} 
@@ -91,7 +94,6 @@ export default function AdminBottomNav() {
         >
           <Ionicons name="person" size={28} color="#FFF" />
         </TouchableOpacity>
-
       </View>
     </View>
   );
@@ -99,19 +101,19 @@ export default function AdminBottomNav() {
 
 const styles = StyleSheet.create({
   bottomNavContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 15,
     paddingBottom: 20,
   },
   bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#354A5F', 
+    flexDirection: "row",
+    backgroundColor: "#354A5F",
     height: 65,
     borderRadius: 20,
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    justifyContent: "space-around",
+    alignItems: "center",
     paddingHorizontal: 10,
   },
   navIcon: {
@@ -134,10 +136,10 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

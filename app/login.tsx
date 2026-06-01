@@ -1,40 +1,44 @@
-import React, { useState } from 'react';
+import { useRouter } from "expo-router";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 // --- ADDED: Import ref and get for Realtime Database ---
-import { ref, get } from 'firebase/database';
+import { get, ref } from "firebase/database";
 // --- ADDED: Import database alongside auth ---
-import { auth, database } from '../database';
+import { auth, database } from "../database";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Error', 'Silakan masukkan email dan password.');
+      Alert.alert("Error", "Silakan masukkan email dan password.");
       return;
     }
 
     setLoading(true);
     try {
       // 1. Authenticate the user
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password,
+      );
+
       // --- ADDED: ROLE-BASED REDIRECTION LOGIC ---
       const userId = userCredential.user.uid;
       const userRef = ref(database, `User/${userId}`); // Make sure the path matches your DB structure
@@ -42,48 +46,47 @@ export default function LoginScreen() {
 
       if (snapshot.exists()) {
         const userData = snapshot.val();
-        
+
         // 2. Check the user's role and redirect accordingly
-        if (userData.role === 'admin') {
-          console.log('Admin login successful');
-          // Redirect to the admin dashboard (Adjust the route name if needed)
-          router.replace('/admin-dashboard' as any);
+        if (userData.role === "admin") {
+          console.log("Admin login successful");
+          router.replace("/admin");
         } else {
-          console.log('User login successful');
-          // Redirect to the standard home screen
-          router.replace('/');
+          console.log("User login successful");
+          router.replace("/");
         }
       } else {
-        // Fallback: If no extra data is found in DB, just send them to home
-        router.replace('/');
+        router.replace("/");
       }
+      setLoading(false);
       // ------------------------------------------
-
     } catch (error: any) {
       setLoading(false);
-      let errorMessage = 'Terjadi kesalahan saat masuk.';
-      if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Format email tidak valid.';
+      let errorMessage = "Terjadi kesalahan saat masuk.";
+      if (error.code === "auth/invalid-email") {
+        errorMessage = "Format email tidak valid.";
       } else if (
-        error.code === 'auth/user-not-found' ||
-        error.code === 'auth/wrong-password' ||
-        error.code === 'auth/invalid-credential'
+        error.code === "auth/user-not-found" ||
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/invalid-credential"
       ) {
-        errorMessage = 'Email atau password salah. Pastikan akun Anda sudah terdaftar.';
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Terlalu banyak percobaan login. Coba lagi beberapa saat.';
-      } else if (error.code === 'auth/network-request-failed') {
-        errorMessage = 'Tidak ada koneksi internet. Periksa jaringan Anda.';
+        errorMessage =
+          "Email atau password salah. Pastikan akun Anda sudah terdaftar.";
+      } else if (error.code === "auth/too-many-requests") {
+        errorMessage =
+          "Terlalu banyak percobaan login. Coba lagi beberapa saat.";
+      } else if (error.code === "auth/network-request-failed") {
+        errorMessage = "Tidak ada koneksi internet. Periksa jaringan Anda.";
       }
-      Alert.alert('Login Gagal', errorMessage);
+      Alert.alert("Login Gagal", errorMessage);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         {/* SECTION 1: TITLE / LOGO */}
         <View style={styles.logoContainer}>
@@ -122,13 +125,20 @@ export default function LoginScreen() {
 
           {/* SECTION 3: LINKS */}
           <View style={styles.linksContainer}>
-            <TouchableOpacity onPress={() => Alert.alert('Lupa Password', 'Silakan hubungi admin untuk mereset password Anda.')}>
+            <TouchableOpacity
+              onPress={() =>
+                Alert.alert(
+                  "Lupa Password",
+                  "Silakan hubungi admin untuk mereset password Anda.",
+                )
+              }
+            >
               <Text style={styles.forgotPassword}>Forgot Password?</Text>
             </TouchableOpacity>
-            
+
             <View style={styles.registerRow}>
               <Text style={styles.normalText}>{"Don't Have Account? "}</Text>
-              <TouchableOpacity onPress={() => router.push('/register-screen')}>
+              <TouchableOpacity onPress={() => router.push("/register-screen")}>
                 <Text style={styles.registerText}>Register Here</Text>
               </TouchableOpacity>
             </View>
@@ -137,8 +147,8 @@ export default function LoginScreen() {
 
         {/* SECTION 4: LOGIN BUTTON */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={[styles.loginButton, loading && { opacity: 0.7 }]} 
+          <TouchableOpacity
+            style={[styles.loginButton, loading && { opacity: 0.7 }]}
             onPress={handleLogin}
             disabled={loading}
           >
@@ -149,7 +159,6 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
         </View>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -158,30 +167,30 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5CC',
+    backgroundColor: "#E8F5CC",
   },
   keyboardAvoid: {
     flex: 1,
     paddingHorizontal: 30,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   logoContainer: {
     marginTop: 80,
-    alignItems: 'center',
+    alignItems: "center",
   },
   logoText: {
     fontSize: 50,
-    fontWeight: '900',
-    color: '#A9D08E',
+    fontWeight: "900",
+    color: "#A9D08E",
     letterSpacing: 2,
-    textShadowColor: '#2F4454', 
+    textShadowColor: "#2F4454",
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 1,
     elevation: 2,
   },
   formContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginTop: 40,
   },
   inputGroup: {
@@ -189,20 +198,20 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    color: '#2F4454',
+    color: "#2F4454",
     marginBottom: 5,
     marginLeft: 5,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     height: 50,
     borderRadius: 25,
     borderWidth: 1.5,
-    borderColor: '#2F4454',
+    borderColor: "#2F4454",
     paddingHorizontal: 20,
     fontSize: 14,
-    color: '#2F4454',
+    color: "#2F4454",
   },
   linksContainer: {
     marginTop: 10,
@@ -210,42 +219,42 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     fontSize: 12,
-    color: '#2F4454',
-    textDecorationLine: 'underline',
+    color: "#2F4454",
+    textDecorationLine: "underline",
     marginBottom: 15,
   },
   registerRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   normalText: {
     fontSize: 12,
-    color: '#2F4454',
+    color: "#2F4454",
   },
   registerText: {
     fontSize: 12,
-    color: '#2F4454',
-    textDecorationLine: 'underline',
-    fontWeight: 'bold',
+    color: "#2F4454",
+    textDecorationLine: "underline",
+    fontWeight: "bold",
   },
   buttonContainer: {
     marginBottom: 50,
   },
   loginButton: {
-    backgroundColor: '#2F4454',
+    backgroundColor: "#2F4454",
     height: 55,
     borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 5,
   },
   loginButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     letterSpacing: 1,
   },
 });
