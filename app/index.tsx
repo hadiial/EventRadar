@@ -1,8 +1,10 @@
+// File: app/index.tsx
+
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
 import { onValue, ref } from 'firebase/database';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Image,
   SafeAreaView,
@@ -14,31 +16,88 @@ import {
   TouchableOpacity,
   View,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { auth, database } from '../database';
 import BottomNav from '@/components/bottom-nav';
+
+const { width: screenWidth } = Dimensions.get('window');
+const CAROUSEL_ITEMS = 3; // Number of items in the carousel
+// Swipe distance = Item width (screenWidth - 40) + Gap between items (20)
+const SNAP_INTERVAL = screenWidth - 20; 
 
 export default function HomeScreen() {
   const router = useRouter();
   const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
 
-  // --- ADDITIONAL STATE FOR SEARCH BAR ---
+  // --- STATE FOR SEARCH BAR ---
   const [searchQuery, setSearchQuery] = useState('');
   
-  // DTemporary mock event data
+  // --- STATE FOR CAROUSEL ---
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const timerRef = useRef<any>(null); // Save timer reference
+  
+  // Temporary mock event data
   const [mockEvents] = useState([
-    { id: 'EVT-001', title: 'Seminar IT' },
-    { id: 'EVT-002', title: 'Lomba Futsal' },
-    { id: 'EVT-003', title: 'Workshop UI/UX' },
-    { id: 'EVT-004', title: 'Bazar Kampus' },
-    { id: 'EVT-005', title: 'Bedah Buku' },
-    { id: 'EVT-006', title: 'Pentas Seni' },
+    { id: 'EVT-001', title: 'IT FAIR XIV', status: 'open' },
+    { id: 'EVT-002', title: 'Lomba Futsal', status: 'ongoing' },
+    { id: 'EVT-003', title: 'Workshop UI/UX', status: 'finished' },
+    { id: 'EVT-004', title: 'Bazar Kampus', status: 'open' },
+    { id: 'EVT-005', title: 'Bedah Buku', status: 'ongoing' },
+    { id: 'EVT-006', title: 'Pentas Seni', status: 'finished' },
   ]);
 
-  // Filter logic to match typed text with event titles
+  // Filter logic
   const filteredEvents = mockEvents.filter((event) =>
     event.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Function to determine high-contrast colors (Color-blind friendly)
+  const getStatusColor = (status: string) => {
+    switch(status) {
+      case 'open': return '#10B981'; // Emerald Green
+      case 'ongoing': return '#F59E0B'; // Amber / Orange
+      case 'finished': return '#EF4444'; // Crimson Red
+      default: return '#7A8B99';
+    }
+  };
+
+  // --- LOGIC CAROUSEL AUTO-SCROLL ---
+  // Function to start and reset timer
+  const startAutoScroll = () => {
+    // Clear old timer if any
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    // Create a new timer from 0
+    timerRef.current = setInterval(() => {
+      setActiveIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % CAROUSEL_ITEMS;
+        scrollViewRef.current?.scrollTo({ x: nextIndex * SNAP_INTERVAL, animated: true });
+        return nextIndex;
+      });
+    }, 3500);
+  };
+
+  useEffect(() => {
+    startAutoScroll(); // Run the first time when the page loads
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current); // Clean up when switching pages
+    };
+  }, []);
+
+  // Update dot indicator when carousel is manually swiped by the user
+  const handleScroll = (event: { nativeEvent: { contentOffset: { x: number } } }) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x;
+    const index = Math.round(scrollPosition / SNAP_INTERVAL);
+    
+    if (index !== activeIndex && index >= 0 && index < CAROUSEL_ITEMS) {
+      setActiveIndex(index);
+    }
+    
+    // ADDITION: Automatically reset timer count every time the user finishes manual sliding
+    startAutoScroll();
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -56,7 +115,6 @@ export default function HomeScreen() {
         return () => unsubscribeDb();
       } else {
         setUserProfile(null);
-        // Redirect is handled by _layout.tsx (auth guard)
       }
     });
     return () => unsubscribe();
@@ -88,50 +146,84 @@ export default function HomeScreen() {
         style={styles.searchInput}
         placeholder="Search event..."
         placeholderTextColor="#7A8B99"
-        value={searchQuery} // Connecting text input value to state
-        onChangeText={setSearchQuery} // Updating state every time the user types
+        value={searchQuery} 
+        onChangeText={setSearchQuery} 
       />
         <Ionicons name="search" size={20} color="#2F4454" />
       </View>
 
-      {/* FEATURED CAROUSEL (MOCKUP) */}
-      <TouchableOpacity 
-        style={styles.featuredCard} 
-        onPress={() => router.push('/events/[id]')} 
-        activeOpacity={0.9}
-      />
+      {/* FEATURED CAROUSEL */}
+      <ScrollView 
+        ref={scrollViewRef}
+        horizontal 
+        snapToInterval={SNAP_INTERVAL} 
+        decelerationRate="fast" 
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        contentContainerStyle={styles.carouselContainer}
+        style={styles.carouselWrapper}
+      >
+        <TouchableOpacity 
+          style={[styles.featuredCard, { width: screenWidth - 40 }]} 
+          onPress={() => router.push('/events/[id]')} 
+          activeOpacity={0.9}
+        />
+        <TouchableOpacity 
+          style={[styles.featuredCard, { width: screenWidth - 40 }]} 
+          onPress={() => router.push('/events/[id]')} 
+          activeOpacity={0.9}
+        />
+        <TouchableOpacity 
+          style={[styles.featuredCard, { width: screenWidth - 40 }]} 
+          onPress={() => router.push('/events/[id]')} 
+          activeOpacity={0.9}
+        />
+      </ScrollView>
 
-      {/* DOT INDICATORS */}
+      {/* DOT INDICATORS DINAMIS */}
       <View style={styles.dotsContainer}>
-        <View style={[styles.dot, styles.dotActive]} />
-        <View style={styles.dot} />
-        <View style={styles.dot} />
-        <View style={styles.dot} />
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={[styles.dot, activeIndex === i && styles.dotActive]} />
+        ))}
       </View>
 
-      {/* CATEGORIZED FOR YOU */}
+      {/* RECOMMENDED FOR YOU */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Categorized for you!</Text>
+        <Text style={styles.sectionTitle}>Recommended for you</Text>
       </View>
 
       <View style={styles.gridContainer}>
-      {/* Filtered event data loop */}
       {filteredEvents.length > 0 ? (
           filteredEvents.map((event) => (
             <TouchableOpacity 
               key={event.id}
               style={styles.gridItem} 
               onPress={() => router.push(`/events/${event.id}`)}
+              activeOpacity={0.8}
             >
-              {event.id === 'EVT-001' ? (
-                <Image
-                  source={require('../assets/images/itFair.png')}
-                  style={styles.gridItemImage}
-                  resizeMode="cover"
+              <View style={styles.gridImageContainer}>
+                {event.id === 'EVT-001' ? (
+                  <Image
+                    source={require('../assets/images/itFair.png')}
+                    style={styles.gridItemImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.placeholderImage} />
+                )}
+              </View>
+
+              <View style={styles.gridTextContainer}>
+                <Text style={styles.eventTitleText} numberOfLines={1}>
+                  {event.title}
+                </Text>
+                <View 
+                  style={[
+                    styles.statusDot, 
+                    { backgroundColor: getStatusColor(event.status) }
+                  ]} 
                 />
-              ) : (
-                <Text style={styles.eventTitleText}>{event.title}</Text>
-              )}
+              </View>
             </TouchableOpacity>
           ))
         ) : (
@@ -149,9 +241,30 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.popularContainer}>
-      {/* Popular Items - Updated to TouchableOpacity for navigation. */}
-        <TouchableOpacity style={styles.popularItem} onPress={() => router.push('/events/[id]')} />
-        <TouchableOpacity style={styles.popularItem} onPress={() => router.push('/events/[id]')} />
+        {mockEvents.slice(3, 5).map((event) => (
+          <TouchableOpacity 
+            key={event.id}
+            style={styles.gridItem}
+            onPress={() => router.push(`/events/${event.id}`)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.gridImageContainer}>
+              <View style={styles.placeholderImage} />
+            </View>
+
+            <View style={styles.gridTextContainer}>
+              <Text style={styles.eventTitleText} numberOfLines={1}>
+                {event.title}
+              </Text>
+              <View 
+                style={[
+                  styles.statusDot, 
+                  { backgroundColor: getStatusColor(event.status) }
+                ]} 
+              />
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* FOOTER LINKS */}
@@ -216,16 +329,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2F4454',
   },
-    searchInput: {
+  searchInput: {
     flex: 1,
     fontSize: 14,
     color: '#2F4454',
   },
+  carouselWrapper: {
+    marginTop: 20,
+  },
+  carouselContainer: {
+    paddingLeft: 20, 
+    paddingRight: 20, 
+    gap: 20, 
+  },
   featuredCard: {
     backgroundColor: '#A9D08E',
     height: 180,
-    marginHorizontal: 20,
-    marginTop: 20,
     borderRadius: 15,
   },
   dotsContainer: {
@@ -261,26 +380,48 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     width: '48%',
-    height: 90,
+    height: 120, 
     backgroundColor: '#A9D08E',
     borderRadius: 10,
-    marginBottom: 10,
-    justifyContent: 'center', 
-    alignItems: 'center',
+    marginBottom: 15, 
     overflow: 'hidden',
+    flexDirection: 'column',
+  },
+  gridImageContainer: {
+    width: '100%',
+    height: 90, 
+    backgroundColor: '#7A8B99',
   },
   gridItemImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
     width: '100%',
     height: '100%',
+  },
+  placeholderImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#8A9A86',
+  },
+  gridTextContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    backgroundColor: '#A9D08E',
   },
   eventTitleText: {
     color: '#2F4454',
     fontWeight: 'bold',
-    textAlign: 'center',
-    paddingHorizontal: 5,
+    fontSize: 12,
+    flex: 1,
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginLeft: 5,
+    borderWidth: 1,
+    borderColor: '#2F4454', 
   },
   noDataText: {
     width: '100%',
@@ -303,12 +444,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-  },
-  popularItem: {
-    width: '48%',
-    height: 100,
-    backgroundColor: '#7A8B99',
-    borderRadius: 10,
   },
   footer: {
     paddingHorizontal: 20,
