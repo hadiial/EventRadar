@@ -95,7 +95,12 @@ export default function EventRequestScreen() {
         {/* EVENT LIST */}
         <View style={styles.listContainer}>
           {filteredEvents.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.eventCard} activeOpacity={0.8}>
+            <TouchableOpacity 
+              key={item.id} 
+              style={styles.eventCard} 
+              activeOpacity={0.8}
+              onPress={() => router.push('/admin-curation')}
+            >
               {/* Image Placeholder */}
               <View style={styles.imagePlaceholder} />
               
