@@ -1,21 +1,22 @@
+import BottomNav from "@/components/bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Platform,
+    Image,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import BottomNav from "@/components/bottom-nav";
-import { bookmarkStore } from "../store/bookmarkStore";
 import { auth, database } from "../database";
+import { bookmarkStore } from "../store/bookmarkStore";
 
 interface ScheduleEvent {
   key: string;
@@ -23,6 +24,7 @@ interface ScheduleEvent {
   month: string;
   year: string;
   name: string;
+  posterUrl?: string;
 }
 
 function parseDateParts(dateStr: string): {
@@ -148,6 +150,7 @@ export default function JadwalScreen() {
             month,
             year,
             name: value?.["Nama Event"] || "Event",
+            posterUrl: value?.["upload poster"] || "",
           };
         });
 
@@ -208,6 +211,8 @@ export default function JadwalScreen() {
           <View style={styles.gridContainer}>
             {pagedEvents.map((event) => {
               const isBookmarked = bookmarkStore.isBookmarked(event.key);
+              const hasPoster =
+                !!event.posterUrl && event.posterUrl.startsWith("http");
 
               return (
                 <TouchableOpacity
@@ -226,7 +231,15 @@ export default function JadwalScreen() {
                       </View>
                       <Text style={styles.gridItemMonth}>{event.month}</Text>
                     </View>
-                    <View style={styles.gridItemImageBox} />
+                    <View style={styles.gridItemImageBox}>
+                      {hasPoster ? (
+                        <Image
+                          source={{ uri: event.posterUrl! }}
+                          style={styles.gridItemImage}
+                          resizeMode="cover"
+                        />
+                      ) : null}
+                    </View>
                   </View>
                   <Text style={styles.gridItemName} numberOfLines={1}>
                     {event.name}
@@ -402,6 +415,12 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 6,
     backgroundColor: "#2F4454",
+    overflow: "hidden",
+  },
+  gridItemImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 6,
   },
   gridItemName: {
     fontSize: 12,

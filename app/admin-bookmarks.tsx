@@ -9,6 +9,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
+  Image,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -124,6 +125,7 @@ export default function AdminBookmarksScreen() {
                       eventKey: item.id,
                       name: item.title,
                       status: item.status,
+                      posterUrl: item.posterUrl,
                     },
                   } as any);
                 } else if (/^\d+$/.test(item.id)) {
@@ -143,7 +145,15 @@ export default function AdminBookmarksScreen() {
                   activeOpacity={0.85}
                 >
                   {/* Image Placeholder */}
-                  <View style={styles.cardImagePlaceholder} />
+                  <View style={styles.cardImagePlaceholder}>
+                    {item.posterUrl && item.posterUrl.startsWith("http") ? (
+                      <Image
+                        source={{ uri: item.posterUrl }}
+                        style={styles.cardImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                  </View>
 
                   {/* Event Details */}
                   <View style={styles.cardDetails}>
@@ -260,6 +270,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#2F4454",
     borderRadius: 10,
     marginRight: 15,
+    overflow: "hidden",
+  },
+  cardImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
   },
   cardDetails: {
     justifyContent: "center",

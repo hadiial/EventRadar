@@ -7,16 +7,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref, update } from "firebase/database";
 import React from "react";
 import {
-    Alert,
-    Image,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { database } from "../database";
 import { bookmarkStore } from "../store/bookmarkStore";
@@ -92,6 +92,7 @@ export default function AdminScheduleDetailScreen() {
         title: eventTitle,
         date: eventDate,
         status: eventStatus,
+        posterUrl: posterUrl || "",
       });
     }
 

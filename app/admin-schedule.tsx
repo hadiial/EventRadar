@@ -9,15 +9,16 @@ import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref, update } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth, database } from "../database";
 import { bookmarkStore } from "../store/bookmarkStore";
@@ -240,6 +241,7 @@ export default function AdminScheduleScreen() {
                         year: item.year,
                         status: item.status,
                         eventKey: item.key,
+                        posterUrl: item.posterUrl,
                       },
                     })
                   }
@@ -253,7 +255,15 @@ export default function AdminScheduleScreen() {
                       </View>
                       <Text style={styles.gridItemMonth}>{item.month}</Text>
                     </View>
-                    <View style={styles.gridItemImageBox} />
+                    <View style={styles.gridItemImageBox}>
+                      {item.posterUrl && item.posterUrl.startsWith("http") ? (
+                        <Image
+                          source={{ uri: item.posterUrl }}
+                          style={styles.gridItemImage}
+                          resizeMode="cover"
+                        />
+                      ) : null}
+                    </View>
                   </View>
 
                   {/* Event name */}
@@ -496,6 +506,12 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 6,
     backgroundColor: "#2F4454",
+    overflow: "hidden",
+  },
+  gridItemImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 6,
   },
   gridItemName: {
     fontSize: 14,

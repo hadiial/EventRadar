@@ -10,40 +10,71 @@
  *   bookmarkData/{userId}/{key}: { title, date, status }  — data DB events
  */
 
-import { get, ref, set } from 'firebase/database';
-import { database } from '../database';
+import { get, ref, set } from "firebase/database";
+import { database } from "../database";
 
 export type BookmarkedEvent = {
   id: string;
   title: string;
   date: string;
   status: string;
+  posterUrl?: string;
   isDbEvent?: boolean;
 };
 
 // Semua event mock yang tersedia
 const ALL_EVENTS: BookmarkedEvent[] = [
-  { id: '1', title: 'Seminar IT',       date: '30 Febuari 2024',  status: 'Terdaftar' },
-  { id: '2', title: 'Lomba Futsal',     date: '3 Maret 2024',     status: 'Belum Terdaftar' },
-  { id: '3', title: 'Workshop UI/UX',   date: '14 Maret 2024',    status: 'Belum Terdaftar' },
-  { id: '4', title: 'Bazar Kampus',     date: '30 Maret 2024',    status: 'Terdaftar' },
-  { id: '5', title: 'Bedah Buku',       date: '30 Febuari 2024',  status: 'Terdaftar' },
-  { id: '6', title: 'Pentas Seni',      date: '30 Febuari 2024',  status: 'Terdaftar' },
+  {
+    id: "1",
+    title: "Seminar IT",
+    date: "30 Febuari 2024",
+    status: "Terdaftar",
+  },
+  {
+    id: "2",
+    title: "Lomba Futsal",
+    date: "3 Maret 2024",
+    status: "Belum Terdaftar",
+  },
+  {
+    id: "3",
+    title: "Workshop UI/UX",
+    date: "14 Maret 2024",
+    status: "Belum Terdaftar",
+  },
+  {
+    id: "4",
+    title: "Bazar Kampus",
+    date: "30 Maret 2024",
+    status: "Terdaftar",
+  },
+  {
+    id: "5",
+    title: "Bedah Buku",
+    date: "30 Febuari 2024",
+    status: "Terdaftar",
+  },
+  {
+    id: "6",
+    title: "Pentas Seni",
+    date: "30 Febuari 2024",
+    status: "Terdaftar",
+  },
 ];
 
 // Map EVT-xxx → bookmark id ('1'..'6')
 const EVT_ID_MAP: Record<string, string> = {
-  'EVT-001': '1',
-  'EVT-002': '2',
-  'EVT-003': '3',
-  'EVT-004': '4',
-  'EVT-005': '5',
-  'EVT-006': '6',
+  "EVT-001": "1",
+  "EVT-002": "2",
+  "EVT-003": "3",
+  "EVT-004": "4",
+  "EVT-005": "5",
+  "EVT-006": "6",
 };
 
 // State singleton
-let bookmarkedIds  = new Set<string>();
-let dbEventCache   = new Map<string, BookmarkedEvent>(); // Menyimpan data DB events yang di-bookmark
+let bookmarkedIds = new Set<string>();
+let dbEventCache = new Map<string, BookmarkedEvent>(); // Menyimpan data DB events yang di-bookmark
 let currentUserId: string | null = null;
 
 type Listener = () => void;
@@ -63,7 +94,9 @@ async function persistToFirebase() {
       await set(bookmarksRef, null);
     } else {
       const bookmarkObj: Record<string, boolean> = {};
-      bookmarkedIds.forEach((id) => { bookmarkObj[id] = true; });
+      bookmarkedIds.forEach((id) => {
+        bookmarkObj[id] = true;
+      });
       await set(bookmarksRef, bookmarkObj);
     }
 
@@ -74,12 +107,17 @@ async function persistToFirebase() {
     } else {
       const dataObj: Record<string, any> = {};
       dbEventCache.forEach((evt, key) => {
-        dataObj[key] = { title: evt.title, date: evt.date, status: evt.status };
+        dataObj[key] = {
+          title: evt.title,
+          date: evt.date,
+          status: evt.status,
+          posterUrl: evt.posterUrl ?? "",
+        };
       });
       await set(bookmarkDataRef, dataObj);
     }
   } catch (error) {
-    console.error('Error persisting bookmarks to Firebase:', error);
+    console.error("Error persisting bookmarks to Firebase:", error);
   }
 }
 
@@ -97,7 +135,7 @@ export const bookmarkStore = {
    */
   async setCurrentUser(userId: string | null): Promise<void> {
     currentUserId = userId;
-    dbEventCache  = new Map<string, BookmarkedEvent>();
+    dbEventCache = new Map<string, BookmarkedEvent>();
 
     if (!userId) {
       bookmarkedIds = new Set<string>();
@@ -116,22 +154,51 @@ export const bookmarkStore = {
       }
 
       // Load DB event data cache
-      const dataRef  = ref(database, `bookmarkData/${userId}`);
+      const dataRef = ref(database, `bookmarkData/${userId}`);
       const dataSnap = await get(dataRef);
       if (dataSnap.exists() && dataSnap.val()) {
         const data = dataSnap.val() as Record<string, any>;
         Object.entries(data).forEach(([key, val]) => {
           dbEventCache.set(key, {
-            id:       key,
-            title:    val.title  ?? 'Event',
-            date:     val.date   ?? '-',
-            status:   val.status ?? '-',
+            id: key,
+            title: val.title ?? "Event",
+            date: val.date ?? "-",
+            status: val.status ?? "-",
+            posterUrl: val.posterUrl ?? "",
             isDbEvent: true,
           });
         });
+
+        // Jika ada bookmark DB lama tanpa posterUrl, coba load dari event record.
+        const missingPosterKeys = Array.from(bookmarkedIds).filter(
+          (id) =>
+            !/^\d+$/.test(id) &&
+            dbEventCache.has(id) &&
+            !dbEventCache.get(id)?.posterUrl,
+        );
+
+        if (missingPosterKeys.length > 0) {
+          await Promise.all(
+            missingPosterKeys.map(async (key) => {
+              const eventRef = ref(database, `events/${key}`);
+              const eventSnap = await get(eventRef);
+              if (eventSnap.exists()) {
+                const val = eventSnap.val();
+                const posterUrl = val?.["upload poster"] || "";
+                if (posterUrl) {
+                  const cached = dbEventCache.get(key);
+                  if (cached) {
+                    dbEventCache.set(key, { ...cached, posterUrl });
+                  }
+                }
+              }
+            }),
+          );
+          await persistToFirebase();
+        }
       }
     } catch (error) {
-      console.error('Error loading bookmarks from Firebase:', error);
+      console.error("Error loading bookmarks from Firebase:", error);
       bookmarkedIds = new Set<string>();
     }
 
@@ -188,7 +255,15 @@ export const bookmarkStore = {
    * Menyimpan juga data event (title, date, status) agar bisa ditampilkan di bookmarks-page
    * tanpa perlu fetch ulang dari Firebase.
    */
-  toggleDbEvent(key: string, eventData: { title: string; date: string; status: string }) {
+  toggleDbEvent(
+    key: string,
+    eventData: {
+      title: string;
+      date: string;
+      status: string;
+      posterUrl?: string;
+    },
+  ) {
     if (bookmarkedIds.has(key)) {
       bookmarkedIds.delete(key);
       dbEventCache.delete(key);

@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  Platform,
-} from "react-native";
+import BottomNav from "@/components/bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
-import BottomNav from "@/components/bottom-nav";
-import { bookmarkStore, BookmarkedEvent } from "../store/bookmarkStore";
+import React, { useEffect, useState } from "react";
+import {
+    Image,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import { auth, database } from "../database";
+import { BookmarkedEvent, bookmarkStore } from "../store/bookmarkStore";
 
 export default function BookmarksScreen() {
   const router = useRouter();
@@ -132,6 +133,9 @@ export default function BookmarksScreen() {
                 }
               };
 
+              const hasPoster =
+                !!item.posterUrl && item.posterUrl.startsWith("http");
+
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -140,7 +144,15 @@ export default function BookmarksScreen() {
                   activeOpacity={0.85}
                 >
                   {/* Image Placeholder */}
-                  <View style={styles.cardImagePlaceholder} />
+                  <View style={styles.cardImagePlaceholder}>
+                    {hasPoster ? (
+                      <Image
+                        source={{ uri: item.posterUrl! }}
+                        style={styles.cardImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                  </View>
 
                   {/* Event Details */}
                   <View style={styles.cardDetails}>
@@ -153,7 +165,9 @@ export default function BookmarksScreen() {
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={(e) => {
-                      e.stopPropagation?.();
+                      if (e?.stopPropagation) {
+                        e.stopPropagation();
+                      }
                       handleDelete(item.id);
                     }}
                   >
@@ -257,6 +271,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#2F4454",
     borderRadius: 10,
     marginRight: 15,
+    overflow: "hidden",
+  },
+  cardImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
   },
   cardDetails: {
     justifyContent: "center",
