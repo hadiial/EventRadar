@@ -2,36 +2,37 @@
 // Admin jadwal — menampilkan semua event approved dari database dalam grid 2 kolom
 // Event yang di-bookmark admin mendapatkan border highlight (seperti jadwal.tsx user)
 
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { onAuthStateChanged } from 'firebase/auth';
-import { onValue, ref, update } from 'firebase/database';
-import React, { useEffect, useState } from 'react';
+import AdminBottomNav from "@/components/admin-bottom-nav";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { onAuthStateChanged } from "firebase/auth";
+import { onValue, ref, update } from "firebase/database";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { auth, database } from '../database';
-import AdminBottomNav from '@/components/admin-bottom-nav';
-import { bookmarkStore } from '../store/bookmarkStore';
+    Alert,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { auth, database } from "../database";
+import { bookmarkStore } from "../store/bookmarkStore";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 interface ScheduleItem {
-  key:       string;  // Firebase event key (e.g., 'event_id_1')
-  dateNum:   string;  // Day number from 'Periode mulai'
-  year:      string;
-  month:     string;
+  key: string; // Firebase event key (e.g., 'event_id_1')
+  dateNum: string; // Day number from 'Periode mulai'
+  year: string;
+  month: string;
   eventName: string;
   posterUrl: string;
+  status: string;
 }
 
 const ITEMS_PER_PAGE = 6; // 3 rows × 2 columns
@@ -39,41 +40,67 @@ const ITEMS_PER_PAGE = 6; // 3 rows × 2 columns
 // ---------------------------------------------------------------------------
 // Helper: parse "DD MM, YY" or "DD Mon, YY" → { day, month, year }
 // ---------------------------------------------------------------------------
-function parseDateParts(dateStr: string): { day: string; month: string; year: string } {
+function parseDateParts(dateStr: string): {
+  day: string;
+  month: string;
+  year: string;
+} {
   const MONTHS_ID: Record<number, string> = {
-    1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April',
-    5: 'Mei', 6: 'Juni', 7: 'Juli', 8: 'Agustus',
-    9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember',
+    1: "Januari",
+    2: "Februari",
+    3: "Maret",
+    4: "April",
+    5: "Mei",
+    6: "Juni",
+    7: "Juli",
+    8: "Agustus",
+    9: "September",
+    10: "Oktober",
+    11: "November",
+    12: "Desember",
   };
   const ABBR_ID: Record<string, string> = {
-    jan: 'Januari', feb: 'Februari', mar: 'Maret', apr: 'April',
-    mei: 'Mei', may: 'Mei', jun: 'Juni', jul: 'Juli',
-    agu: 'Agustus', aug: 'Agustus', sep: 'September',
-    okt: 'Oktober', oct: 'Oktober', nov: 'November', des: 'Desember', dec: 'Desember',
+    jan: "Januari",
+    feb: "Februari",
+    mar: "Maret",
+    apr: "April",
+    mei: "Mei",
+    may: "Mei",
+    jun: "Juni",
+    jul: "Juli",
+    agu: "Agustus",
+    aug: "Agustus",
+    sep: "September",
+    okt: "Oktober",
+    oct: "Oktober",
+    nov: "November",
+    des: "Desember",
+    dec: "Desember",
   };
 
-  if (!dateStr || dateStr === '-') return { day: '??', month: '???', year: '????' };
+  if (!dateStr || dateStr === "-")
+    return { day: "??", month: "???", year: "????" };
 
   // Format numerik: "05 06, 26"
   const numMatch = dateStr.match(/^(\d{1,2})\s+(\d{1,2}),?\s*(\d{2,4})$/);
   if (numMatch) {
-    const day   = numMatch[1].padStart(2, '0');
-    const mNum  = parseInt(numMatch[2], 10);
-    const yr    = numMatch[3].length === 2 ? `20${numMatch[3]}` : numMatch[3];
+    const day = numMatch[1].padStart(2, "0");
+    const mNum = parseInt(numMatch[2], 10);
+    const yr = numMatch[3].length === 2 ? `20${numMatch[3]}` : numMatch[3];
     return { day, month: MONTHS_ID[mNum] ?? `Bln ${mNum}`, year: yr };
   }
 
   // Format teks: "05 Jun, 26"
   const txtMatch = dateStr.match(/^(\d{1,2})\s+([a-zA-Z]{3}),?\s*(\d{2,4})$/);
   if (txtMatch) {
-    const day  = txtMatch[1].padStart(2, '0');
+    const day = txtMatch[1].padStart(2, "0");
     const abbr = txtMatch[2].toLowerCase();
-    const yr   = txtMatch[3].length === 2 ? `20${txtMatch[3]}` : txtMatch[3];
+    const yr = txtMatch[3].length === 2 ? `20${txtMatch[3]}` : txtMatch[3];
     return { day, month: ABBR_ID[abbr] ?? txtMatch[2], year: yr };
   }
 
   // Fallback: gunakan teks apa adanya
-  return { day: '??', month: dateStr, year: '' };
+  return { day: "??", month: dateStr, year: "" };
 }
 
 // ---------------------------------------------------------------------------
@@ -82,10 +109,10 @@ function parseDateParts(dateStr: string): { day: string; month: string; year: st
 export default function AdminScheduleScreen() {
   const router = useRouter();
 
-  const [adminName, setAdminName]       = useState('Admin');
-  const [adminFakultas, setAdminFakultas] = useState('');
+  const [adminName, setAdminName] = useState("Admin");
+  const [adminFakultas, setAdminFakultas] = useState("");
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
-  const [currentPage, setCurrentPage]   = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Subscribe ke bookmarkStore untuk re-render saat bookmark berubah
   const [, forceUpdate] = useState(0);
@@ -98,12 +125,12 @@ export default function AdminScheduleScreen() {
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        const userRef = ref(database, 'User/' + user.uid);
+        const userRef = ref(database, "User/" + user.uid);
         const unsubDb = onValue(userRef, (snap) => {
           const data = snap.val();
-          if (data?.fullname)      setAdminName(data.fullname);
+          if (data?.fullname) setAdminName(data.fullname);
           else if (data?.username) setAdminName(data.username);
-          if (data?.fakultas)      setAdminFakultas(data.fakultas);
+          if (data?.fakultas) setAdminFakultas(data.fakultas);
         });
         return () => unsubDb();
       }
@@ -113,21 +140,27 @@ export default function AdminScheduleScreen() {
 
   // Fetch approved events dari Firebase
   useEffect(() => {
-    const eventsRef = ref(database, 'events');
+    const eventsRef = ref(database, "events");
     const unsubDb = onValue(eventsRef, (snap) => {
-      if (!snap.exists()) { setScheduleItems([]); return; }
+      if (!snap.exists()) {
+        setScheduleItems([]);
+        return;
+      }
       const raw = snap.val() as Record<string, any>;
       const items: ScheduleItem[] = Object.entries(raw)
-        .filter(([, val]) => val?.status === 'approved')
+        .filter(([, val]) => val?.status === "approved")
         .map(([key, val]) => {
-          const { day, month, year } = parseDateParts(val['Periode mulai'] || '');
+          const { day, month, year } = parseDateParts(
+            val["Periode mulai"] || "",
+          );
           return {
             key,
-            dateNum:   day,
+            dateNum: day,
             year,
             month,
-            eventName: val['Nama Event']   || 'Event',
-            posterUrl: val['upload poster'] || '',
+            eventName: val["Nama Event"] || "Event",
+            posterUrl: val["upload poster"] || "",
+            status: val.status || "approved",
           };
         });
       setScheduleItems(items);
@@ -136,10 +169,13 @@ export default function AdminScheduleScreen() {
     return () => unsubDb();
   }, []);
 
-  const totalPages  = Math.max(1, Math.ceil(scheduleItems.length / ITEMS_PER_PAGE));
-  const pagedItems  = scheduleItems.slice(
+  const totalPages = Math.max(
+    1,
+    Math.ceil(scheduleItems.length / ITEMS_PER_PAGE),
+  );
+  const pagedItems = scheduleItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    currentPage * ITEMS_PER_PAGE,
   );
 
   // ---------------------------------------------------------------------------
@@ -155,13 +191,17 @@ export default function AdminScheduleScreen() {
           <View style={styles.avatarPlaceholder} />
           <View>
             <Text style={styles.userName}>{adminName}</Text>
-            {adminFakultas ? <Text style={styles.userMajor}>{adminFakultas}</Text> : null}
+            {adminFakultas ? (
+              <Text style={styles.userMajor}>{adminFakultas}</Text>
+            ) : null}
           </View>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* SECTION TITLE */}
         <View style={styles.sectionHeader}>
           <Ionicons name="calendar" size={18} color="#2F4454" />
@@ -172,7 +212,9 @@ export default function AdminScheduleScreen() {
         {scheduleItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={48} color="#A9D08E" />
-            <Text style={styles.emptyText}>Belum ada event terjadwal yang disetujui.</Text>
+            <Text style={styles.emptyText}>
+              Belum ada event terjadwal yang disetujui.
+            </Text>
           </View>
         ) : (
           <View style={styles.gridContainer}>
@@ -182,17 +224,21 @@ export default function AdminScheduleScreen() {
               return (
                 <TouchableOpacity
                   key={item.key}
-                  style={[styles.gridItem, isBookmarked && styles.gridItemBookmarked]}
+                  style={[
+                    styles.gridItem,
+                    isBookmarked && styles.gridItemBookmarked,
+                  ]}
                   activeOpacity={0.8}
                   onPress={() =>
                     router.push({
-                      pathname: '/admin-schedule-detail' as any,
+                      pathname: "/admin-schedule-detail" as any,
                       params: {
-                        id:       item.key,
-                        name:     item.eventName,
-                        day:      item.dateNum,
-                        month:    item.month,
-                        year:     item.year,
+                        id: item.key,
+                        name: item.eventName,
+                        day: item.dateNum,
+                        month: item.month,
+                        year: item.year,
+                        status: item.status,
                         eventKey: item.key,
                       },
                     })
@@ -221,40 +267,48 @@ export default function AdminScheduleScreen() {
                     onPress={(e) => {
                       e.stopPropagation?.();
                       Alert.alert(
-                        'Ubah Setelan Event',
+                        "Ubah Setelan Event",
                         `Event: ${item.eventName}\n\nApa yang ingin Anda lakukan?`,
                         [
-                          { text: 'Batal', style: 'cancel' },
+                          { text: "Batal", style: "cancel" },
                           {
-                            text: 'Hapus Event',
-                            style: 'destructive',
+                            text: "Hapus Event",
+                            style: "destructive",
                             onPress: () => {
                               Alert.alert(
-                                'Konfirmasi Hapus',
+                                "Konfirmasi Hapus",
                                 `Apakah Anda yakin ingin menghapus "${item.eventName}"? Event akan ditandai sebagai ditolak.`,
                                 [
-                                  { text: 'Batal', style: 'cancel' },
+                                  { text: "Batal", style: "cancel" },
                                   {
-                                    text: 'Hapus',
-                                    style: 'destructive',
+                                    text: "Hapus",
+                                    style: "destructive",
                                     onPress: async () => {
                                       try {
-                                        await update(ref(database, `events/${item.key}`), { status: 'rejected' });
+                                        await update(
+                                          ref(database, `events/${item.key}`),
+                                          { status: "rejected" },
+                                        );
                                         bookmarkStore.remove(item.key);
                                       } catch (err) {
-                                        console.error('Error removing event:', err);
+                                        console.error(
+                                          "Error removing event:",
+                                          err,
+                                        );
                                       }
                                     },
                                   },
-                                ]
+                                ],
                               );
                             },
                           },
                           {
-                            text: 'Biarkan',
-                            onPress: () => {/* tidak ada aksi */},
+                            text: "Biarkan",
+                            onPress: () => {
+                              /* tidak ada aksi */
+                            },
                           },
-                        ]
+                        ],
                       );
                     }}
                   >
@@ -274,18 +328,31 @@ export default function AdminScheduleScreen() {
               onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              <Text style={[styles.pageArrowText, currentPage === 1 && styles.pageArrowDisabled]}>
-                {'<'}
+              <Text
+                style={[
+                  styles.pageArrowText,
+                  currentPage === 1 && styles.pageArrowDisabled,
+                ]}
+              >
+                {"<"}
               </Text>
             </TouchableOpacity>
 
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <TouchableOpacity
                 key={page}
-                style={[styles.pageBtn, page === currentPage && styles.pageBtnActive]}
+                style={[
+                  styles.pageBtn,
+                  page === currentPage && styles.pageBtnActive,
+                ]}
                 onPress={() => setCurrentPage(page)}
               >
-                <Text style={[styles.pageBtnText, page === currentPage && styles.pageBtnTextActive]}>
+                <Text
+                  style={[
+                    styles.pageBtnText,
+                    page === currentPage && styles.pageBtnTextActive,
+                  ]}
+                >
                   {page}
                 </Text>
               </TouchableOpacity>
@@ -296,13 +363,17 @@ export default function AdminScheduleScreen() {
               onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              <Text style={[styles.pageArrowText, currentPage === totalPages && styles.pageArrowDisabled]}>
-                {'>'}
+              <Text
+                style={[
+                  styles.pageArrowText,
+                  currentPage === totalPages && styles.pageArrowDisabled,
+                ]}
+              >
+                {">"}
               </Text>
             </TouchableOpacity>
           </View>
         )}
-
       </ScrollView>
 
       <AdminBottomNav />
@@ -316,11 +387,11 @@ export default function AdminScheduleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5CC',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    backgroundColor: "#E8F5CC",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
-    backgroundColor: '#A9D08E',
+    backgroundColor: "#A9D08E",
     paddingHorizontal: 20,
     paddingTop: 40,
     paddingBottom: 25,
@@ -328,31 +399,31 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 25,
   },
   userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatarPlaceholder: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#F4F6F6',
+    backgroundColor: "#F4F6F6",
     marginRight: 15,
   },
   userName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
   },
   userMajor: {
     fontSize: 12,
-    color: '#2F4454',
+    color: "#2F4454",
   },
   scrollContent: {
     paddingBottom: 120,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginHorizontal: 20,
     marginTop: 20,
@@ -360,91 +431,91 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 60,
     gap: 12,
     paddingHorizontal: 40,
   },
   emptyText: {
     fontSize: 14,
-    color: '#7A8B99',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    color: "#7A8B99",
+    textAlign: "center",
+    fontStyle: "italic",
   },
   gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
   },
   gridItem: {
-    width: '48%',
-    backgroundColor: '#A9D08E',
+    width: "48%",
+    backgroundColor: "#A9D08E",
     borderRadius: 12,
     padding: 10,
     marginBottom: 12,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     minHeight: 130,
   },
   // Highlight border untuk event yang di-bookmark admin
   gridItemBookmarked: {
     borderWidth: 2,
-    borderColor: '#2F4454',
+    borderColor: "#2F4454",
   },
   gridItemTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   gridItemDayRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    alignItems: "baseline",
     gap: 4,
   },
   gridItemDay: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
   },
   gridItemYear: {
     fontSize: 11,
-    color: '#2F4454',
+    color: "#2F4454",
   },
   gridItemMonth: {
     fontSize: 11,
-    color: '#2F4454',
+    color: "#2F4454",
     marginTop: 1,
   },
   gridItemImageBox: {
     width: 36,
     height: 36,
     borderRadius: 6,
-    backgroundColor: '#2F4454',
+    backgroundColor: "#2F4454",
   },
   gridItemName: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
     marginBottom: 6,
   },
   editLinkContainer: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   editLinkText: {
     fontSize: 10,
-    color: '#2F4454',
-    textDecorationLine: 'underline',
-    fontWeight: '600',
+    color: "#2F4454",
+    textDecorationLine: "underline",
+    fontWeight: "600",
   },
   pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 10,
     gap: 6,
     paddingBottom: 10,
@@ -455,29 +526,29 @@ const styles = StyleSheet.create({
   },
   pageArrowText: {
     fontSize: 16,
-    color: '#2F4454',
-    fontWeight: 'bold',
+    color: "#2F4454",
+    fontWeight: "bold",
   },
   pageArrowDisabled: {
-    color: '#B0BEC5',
+    color: "#B0BEC5",
   },
   pageBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#A9D08E',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#A9D08E",
+    justifyContent: "center",
+    alignItems: "center",
   },
   pageBtnActive: {
-    backgroundColor: '#2F4454',
+    backgroundColor: "#2F4454",
   },
   pageBtnText: {
     fontSize: 12,
-    color: '#2F4454',
-    fontWeight: 'bold',
+    color: "#2F4454",
+    fontWeight: "bold",
   },
   pageBtnTextActive: {
-    color: '#FFF',
+    color: "#FFF",
   },
 });
