@@ -4,6 +4,7 @@ import { get, ref } from "firebase/database";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { auth, database } from "../database";
+import { bookmarkStore } from "../store/bookmarkStore";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -17,6 +18,8 @@ export default function RootLayout() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
+      // Load (or clear) bookmarks from Firebase based on auth state
+      bookmarkStore.setCurrentUser(currentUser ? currentUser.uid : null);
     });
     return () => unsubscribe();
   }, []);

@@ -162,6 +162,8 @@ export default function HomeScreen() {
         onMomentumScrollEnd={handleScroll}
         contentContainerStyle={styles.carouselContainer}
         style={styles.carouselWrapper}
+        disableIntervalMomentum={true}
+        scrollEventThrottle={16}
       >
         <TouchableOpacity 
           style={[styles.featuredCard, { width: screenWidth - 40 }]} 
@@ -231,7 +233,7 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={styles.moreLink}>
+      <TouchableOpacity style={styles.moreLink} onPress={() => router.push('/all-events' as any)}>
         <Text style={styles.moreText}>More</Text>
       </TouchableOpacity>
 

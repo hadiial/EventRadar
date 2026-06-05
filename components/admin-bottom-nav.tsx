@@ -24,7 +24,7 @@ export default function AdminBottomNav() {
 
     // --- TEMPORARY LOCK MECHANISM ---
     // ADDED: '/admin-profile' is now unlocked!
-    const readyPages = ['/admin-dashboard', '/admin-bookmarks', '/admin-schedule', '/admin-profile'];
+    const readyPages = ['/admin-dashboard', '/admin-bookmarks', '/admin-schedule', '/admin-profile', '/admin-event-request'];
 
     // If the requested route is NOT in the readyPages array, show a 'Coming Soon' alert.
     if (!readyPages.includes(route)) {
@@ -73,14 +73,14 @@ export default function AdminBottomNav() {
           </TouchableOpacity>
         </View>
 
-        {/* CREATE EVENT / CURATION BUTTON */}
+        {/* CREATE EVENT / EVENT REQUEST BUTTON */}
         <TouchableOpacity
           style={[
             styles.navIcon,
-            pathname === "/event-form" && styles.activeNavIcon,
+            pathname === "/admin-event-request" && styles.activeNavIcon,
           ]}
-          onPress={() => handleNavigation("/event-form")}
-          accessibilityLabel="Go to create event"
+          onPress={() => handleNavigation("/admin-event-request")}
+          accessibilityLabel="Go to event requests"
         >
           <Ionicons name="add-circle-outline" size={32} color="#FFF" />
         </TouchableOpacity>

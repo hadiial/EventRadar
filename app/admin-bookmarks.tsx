@@ -1,83 +1,95 @@
 // File: app/admin-bookmarks.tsx
+// Admin bookmark page — sama persis seperti user bookmarks-page.tsx
+// menggunakan bookmarkStore yang sama (persist ke Firebase)
 
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TextInput,
   TouchableOpacity,
+  SafeAreaView,
   StatusBar,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { ref, onValue } from 'firebase/database';
+import { onValue, ref } from 'firebase/database';
+import AdminBottomNav from '@/components/admin-bottom-nav';
+import { bookmarkStore, BookmarkedEvent } from '../store/bookmarkStore';
 import { auth, database } from '../database';
 
-import AdminBottomNav from '@/components/admin-bottom-nav';
-
-// Dummy data for initial UI setup. Later, replace this with data from Firebase.
-const DUMMY_EVENTS = [
-  { id: '1', title: 'Nama event', date: '30 Februari 2024', status: 'Pending' },
-  { id: '2', title: 'Nama event', date: '3 Maret 2024', status: 'Approved' },
-  { id: '3', title: 'Nama event', date: '14 Maret 2024', status: 'Approved' },
-  { id: '4', title: 'Nama event', date: '30 Maret 2024', status: 'Pending' },
-  { id: '5', title: 'Nama event', date: '15 April 2024', status: 'Pending' },
-];
-
-export default function EventRequestScreen() {
+export default function AdminBookmarksScreen() {
   const router = useRouter();
-  const [adminName, setAdminName] = useState('Admin');
+  const [userProfile, setUserProfile] = useState<{ fullname: string; fakultas: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch Admin Profile from Firebase to display in the header
+  // State bookmark dari singleton store
+  const [bookmarkedEvents, setBookmarkedEvents] = useState<BookmarkedEvent[]>(
+    () => bookmarkStore.getBookmarked()
+  );
+
+  // Subscribe ke perubahan store
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = bookmarkStore.subscribe(() => {
+      setBookmarkedEvents(bookmarkStore.getBookmarked());
+    });
+    setBookmarkedEvents(bookmarkStore.getBookmarked());
+    return unsubscribe;
+  }, []);
+
+  // Fetch admin profile dari Firebase
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         const userRef = ref(database, 'User/' + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
           const data = snapshot.val();
-          if (data && data.fullname) {
-            setAdminName(data.fullname);
-          } else if (data && data.username) {
-            setAdminName(data.username);
+          if (data) {
+            setUserProfile({
+              fullname: data.fullname || data.username || 'Admin',
+              fakultas: data.fakultas || '',
+            });
           }
         });
         return () => unsubscribeDb();
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
-  // Filter events based on the search query
-  const filteredEvents = DUMMY_EVENTS.filter((event) =>
-    event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    event.status.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredEvents = bookmarkedEvents.filter((event) =>
+    event.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleDelete = (id: string) => {
+    bookmarkStore.remove(id);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
 
-      {/* HEADER SECTION */}
+      {/* HEADER: USER INFO */}
       <View style={styles.header}>
         <View style={styles.avatarPlaceholder} />
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.adminName}>{adminName}</Text>
-          <Text style={styles.adminRole}>Teknik Kayu</Text>
+        <View>
+          <Text style={styles.userName}>{userProfile?.fullname || 'Memuat...'}</Text>
+          <Text style={styles.userMajor}>{userProfile?.fakultas || 'Memuat...'}</Text>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* PAGE TITLE & ICON */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* TITLE & ICON */}
         <View style={styles.titleContainer}>
-          <Ionicons name="bookmark" size={28} color="#2F4454" />
-          <Text style={styles.pageTitle}>Event Request</Text>
+          <Ionicons name="bookmark" size={24} color="#2F4454" />
+          <Text style={styles.titleText}>Bookmark</Text>
         </View>
 
         {/* SEARCH BAR */}
@@ -89,53 +101,45 @@ export default function EventRequestScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-          <Ionicons name="search" size={20} color="#2F4454" style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color="#2F4454" />
         </View>
 
-        {/* EVENT LIST */}
+        {/* BOOKMARKED EVENTS LIST */}
         <View style={styles.listContainer}>
-          {filteredEvents.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={styles.eventCard} 
-              activeOpacity={0.8}
-              onPress={() => router.push('/admin-curation')}
-            >
-              {/* Image Placeholder */}
-              <View style={styles.imagePlaceholder} />
-              
-              {/* Event Details */}
-              <View style={styles.eventInfo}>
-                <Text style={styles.eventTitle}>{item.title}</Text>
-                <Text style={styles.eventDate}>{item.date}</Text>
-                <Text 
-                  style={[
-                    styles.eventStatus, 
-                    item.status === 'Approved' ? styles.statusApproved : styles.statusPending
-                  ]}
+          {filteredEvents.length > 0 ? (
+            filteredEvents.map((item) => (
+              <View key={item.id} style={styles.card}>
+                {/* Image Placeholder */}
+                <View style={styles.cardImagePlaceholder} />
+
+                {/* Event Details */}
+                <View style={styles.cardDetails}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardDate}>{item.date}</Text>
+                  <Text style={styles.cardStatus}>{item.status}</Text>
+                </View>
+
+                {/* Delete Icon */}
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => handleDelete(item.id)}
                 >
-                  {item.status}
-                </Text>
+                  <Ionicons name="trash" size={20} color="#2F4454" />
+                </TouchableOpacity>
               </View>
-
-              {/* Action Icon (Magnifying Glass) */}
-              <View style={styles.actionIconContainer}>
-                <Ionicons name="search" size={20} color="#2F4454" />
-              </View>
-            </TouchableOpacity>
-          ))}
-
-          {/* Empty State message if search yields no results */}
-          {filteredEvents.length === 0 && (
-            <Text style={styles.emptyText}>Tidak ada event yang sesuai.</Text>
+            ))
+          ) : (
+            <Text style={styles.noDataText}>
+              {bookmarkedEvents.length === 0
+                ? 'Belum ada bookmark. Tambahkan event dari halaman utama!'
+                : 'Bookmark tidak ditemukan'}
+            </Text>
           )}
         </View>
-
       </ScrollView>
 
       {/* ADMIN BOTTOM NAVIGATION */}
       <AdminBottomNav />
-
     </SafeAreaView>
   );
 }
@@ -146,126 +150,111 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F5CC',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100, // Space for the BottomNav
-  },
-  // HEADER STYLES
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
+    paddingHorizontal: 25,
+    paddingTop: 30,
+    marginBottom: 20,
   },
   avatarPlaceholder: {
     width: 45,
     height: 45,
     borderRadius: 22.5,
-    backgroundColor: '#C4C4C4', // Grey placeholder color
+    backgroundColor: '#D1D5DB',
     marginRight: 15,
   },
-  headerTextContainer: {
-    justifyContent: 'center',
-  },
-  adminName: {
+  userName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2F4454',
   },
-  adminRole: {
+  userMajor: {
     fontSize: 12,
-    color: '#7A8B99',
+    color: '#556B7D',
   },
-  // TITLE STYLES
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 130,
+  },
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
     marginBottom: 15,
+    marginLeft: 5,
   },
-  pageTitle: {
-    fontSize: 18,
+  titleText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#2F4454',
     marginLeft: 10,
   },
-  // SEARCH BAR STYLES
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F4F6F6',
+    paddingHorizontal: 15,
+    height: 45,
+    borderRadius: 25,
     borderWidth: 1.5,
     borderColor: '#2F4454',
-    borderRadius: 25,
-    height: 45,
-    paddingHorizontal: 15,
     marginBottom: 20,
   },
   searchInput: {
     flex: 1,
-    height: '100%',
     fontSize: 14,
     color: '#2F4454',
   },
-  searchIcon: {
-    marginLeft: 10,
-  },
-  // EVENT CARD STYLES
   listContainer: {
-    flex: 1,
+    flexDirection: 'column',
+    gap: 15,
   },
-  eventCard: {
-    flexDirection: 'row',
+  card: {
     backgroundColor: '#A9D08E',
     borderRadius: 15,
-    padding: 12,
-    marginBottom: 15,
-    alignItems: 'center',
+    padding: 10,
+    flexDirection: 'row',
+    position: 'relative',
+    height: 110,
   },
-  imagePlaceholder: {
-    width: 80,
-    height: 80,
+  cardImagePlaceholder: {
+    width: 90,
+    height: '100%',
     backgroundColor: '#2F4454',
-    borderRadius: 8,
+    borderRadius: 10,
     marginRight: 15,
   },
-  eventInfo: {
-    flex: 1,
+  cardDetails: {
     justifyContent: 'center',
+    flex: 1,
   },
-  eventTitle: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2F4454',
-    marginBottom: 2,
+    marginBottom: 5,
   },
-  eventDate: {
-    fontSize: 13,
+  cardDate: {
+    fontSize: 12,
     color: '#2F4454',
-    fontWeight: '500',
     marginBottom: 2,
   },
-  eventStatus: {
-    fontSize: 13,
-    fontWeight: 'bold',
+  cardStatus: {
+    fontSize: 12,
+    color: '#2F4454',
+    fontWeight: '600',
   },
-  statusPending: {
-    color: '#2F4454', // Match the mockup's color
+  deleteButton: {
+    position: 'absolute',
+    bottom: 10,
+    right: 15,
+    padding: 5,
   },
-  statusApproved: {
-    color: '#354A5F', // Can be tweaked if approved needs a different tint
-  },
-  actionIconContainer: {
-    justifyContent: 'flex-end',
-    alignItems: 'flex-end',
-    height: 80,
-    paddingBottom: 5,
-    paddingRight: 5,
-  },
-  emptyText: {
+  noDataText: {
+    width: '100%',
     textAlign: 'center',
-    color: '#7A8B99',
     marginTop: 20,
+    color: '#7A8B99',
+    fontStyle: 'italic',
   },
 });

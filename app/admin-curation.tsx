@@ -1,6 +1,6 @@
 // File: app/admin-curation.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,131 +11,214 @@ import {
   StatusBar,
   Platform,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons'; 
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import AdminBottomNav from '@/components/admin-bottom-nav';
+import { database } from '../database';
+import { onValue, ref, update } from 'firebase/database';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+type EventData = {
+  key:              string;
+  title:            string;
+  organizer:        string;
+  category:         string;
+  description:      string;
+  posterUrl:        string;
+  startDate:        string;
+  endDate:          string;
+  location:         string;
+  registrationLink: string;
+  phone:            string;
+};
 
 /**
- * AdminCurationScreen Component
- * A 3-step wizard for admins to review, check eligibility, and approve/reject events.
+ * AdminCurationScreen
+ * 3-step wizard untuk admin mereview, mengecek kelayakan, dan menyetujui/menolak event.
+ * Mengambil event pending pertama dari Firebase jika tidak ada eventKey dari params.
  */
 export default function AdminCurationScreen() {
   const router = useRouter();
+  const { eventKey } = useLocalSearchParams<{ eventKey?: string }>();
+
   const [currentStep, setCurrentStep] = useState(1);
+  const [pendingEvent, setPendingEvent] = useState<EventData | null>(null);
+  const [loading, setLoading]          = useState(true);
+  const [posterError, setPosterError]  = useState(false);
 
-  // States for Step 1 Checkboxes (Kelengkapan)
-  const [completenessChecks, setCompletenessChecks] = useState([
-    false, false, false, false, false, // Left column
-    false, false, false, false, false  // Right column
-  ]);
-
-  // States for Step 2 Checkboxes (Kelayakan)
-  const [eligibilityChecks, setEligibilityChecks] = useState([
-    false, false, false, false, false, // Left column
-    false, false, false, false, false  // Right column
-  ]);
+  // Checkboxes Step 1
+  const [completenessChecks, setCompletenessChecks] = useState(
+    Array(10).fill(false)
+  );
+  // Checkboxes Step 2
+  const [eligibilityChecks, setEligibilityChecks] = useState(
+    Array(10).fill(false)
+  );
 
   const completenessLabels = [
     "Nama event", "Penyelenggara", "Kategori", "Deskripsi", "Poster",
-    "Periode Event", "Lokasi", "Link Pendaftaran", "Info User Lengkap", "Contact Person"
+    "Periode Event", "Lokasi", "Link Pendaftaran", "Info User Lengkap", "Contact Person",
   ];
 
   const eligibilityLabels = [
     "Sesi akademik", "Target Peserta jelas", "Struktur event jelas", "Dilarang merokok", "Kelayakan poster",
-    "Sesi non-akademik", "Lokasi strategis", "Struktur Panitia jelas", "Sesuai aturan kampus", "Tidak melanggar hukum"
+    "Sesi non-akademik", "Lokasi strategis", "Struktur Panitia jelas", "Sesuai aturan kampus", "Tidak melanggar hukum",
   ];
 
-  /**
-   * Helper to toggle a specific checkbox array
-   */
+  // ---------------------------------------------------------------------------
+  // Fetch pending event dari Firebase
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    setLoading(true);
+    const eventsRef = ref(database, 'events');
+    const unsubDb = onValue(eventsRef, (snapshot) => {
+      setLoading(false);
+      if (!snapshot.exists()) { setPendingEvent(null); return; }
+
+      const raw = snapshot.val() as Record<string, any>;
+      const entries = Object.entries(raw);
+
+      // Jika ada eventKey dari params, pakai itu. Kalau tidak, ambil pending pertama.
+      let targetEntry: [string, any] | undefined;
+
+      if (eventKey) {
+        targetEntry = entries.find(([k]) => k === eventKey);
+      } else {
+        // Cari event yang status-nya bukan 'approved' dan bukan 'rejected'
+        targetEntry = entries.find(([, val]) => {
+          const s = val?.status;
+          return !s || (s !== 'approved' && s !== 'rejected');
+        });
+      }
+
+      if (!targetEntry) {
+        setPendingEvent(null);
+        return;
+      }
+
+      const [key, val] = targetEntry;
+      setPendingEvent({
+        key,
+        title:            val['Nama Event']          || 'Tanpa Judul',
+        organizer:        val['Nama penyelenggara']   || '-',
+        category:         val['Kategori Event']       || '-',
+        description:      val['Deskripsi event']      || '-',
+        posterUrl:        val['upload poster']         || '',
+        startDate:        val['Periode mulai']         || '-',
+        endDate:          val['periode akhir']         || '-',
+        location:         val['lokasi']               || '-',
+        registrationLink: val['Link pendaftaran']     || '',
+        phone:            val['phone']                || '-',
+      });
+    });
+    return () => unsubDb();
+  }, [eventKey]);
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
   const toggleCheck = (index: number, type: 'completeness' | 'eligibility') => {
     if (type === 'completeness') {
-      const newChecks = [...completenessChecks];
-      newChecks[index] = !newChecks[index];
-      setCompletenessChecks(newChecks);
+      const n = [...completenessChecks];
+      n[index] = !n[index];
+      setCompletenessChecks(n);
     } else {
-      const newChecks = [...eligibilityChecks];
-      newChecks[index] = !newChecks[index];
-      setEligibilityChecks(newChecks);
+      const n = [...eligibilityChecks];
+      n[index] = !n[index];
+      setEligibilityChecks(n);
     }
   };
 
-  // --- LOGIKA DINAMIS UNTUK STEP 3 ---
-  // Mengumpulkan semua parameter yang sudah diceklis
   const getCheckedParameters = () => {
     const checked: string[] = [];
-    completenessChecks.forEach((isChecked, index) => {
-      if (isChecked) checked.push(completenessLabels[index]);
-    });
-    eligibilityChecks.forEach((isChecked, index) => {
-      if (isChecked) checked.push(eligibilityLabels[index]);
-    });
+    completenessChecks.forEach((v, i) => { if (v) checked.push(completenessLabels[i]); });
+    eligibilityChecks.forEach((v, i)  => { if (v) checked.push(eligibilityLabels[i]); });
     return checked;
   };
 
-  const checkedParams = getCheckedParameters();
-  // Menghitung persentase dari total 20 parameter (10 kelengkapan + 10 kelayakan)
+  const checkedParams         = getCheckedParameters();
   const eligibilityPercentage = Math.round((checkedParams.length / 20) * 100);
 
-  /**
-   * Final Action Handlers
-   */
+  // ---------------------------------------------------------------------------
+  // Write status ke Firebase
+  // ---------------------------------------------------------------------------
+  const writeStatus = async (status: 'approved' | 'rejected') => {
+    if (!pendingEvent?.key) return;
+    try {
+      await update(ref(database, `events/${pendingEvent.key}`), { status });
+    } catch (e) {
+      console.error('Error updating event status:', e);
+    }
+  };
+
   const handleApprove = () => {
-    const uncheckedItems: string[] = [];
+    const unchecked: string[] = [];
+    completenessChecks.forEach((v, i) => { if (!v) unchecked.push(completenessLabels[i]); });
+    eligibilityChecks.forEach((v, i)  => { if (!v) unchecked.push(eligibilityLabels[i]); });
 
-    completenessChecks.forEach((isChecked, index) => {
-      if (!isChecked) uncheckedItems.push(completenessLabels[index]);
-    });
-    eligibilityChecks.forEach((isChecked, index) => {
-      if (!isChecked) uncheckedItems.push(eligibilityLabels[index]);
-    });
-
-    if (uncheckedItems.length > 0) {
-      const listString = uncheckedItems.map(item => `- ${item}`).join('\n');
-      
+    if (unchecked.length > 0) {
+      const list = unchecked.map((item) => `- ${item}`).join('\n');
       Alert.alert(
         'Peringatan!',
-        `Apakah anda yakin ingin approve event ini? Kriteria berikut belum diceklis:\n\n${listString}`,
+        `Apakah anda yakin ingin approve event ini? Kriteria berikut belum diceklis:\n\n${list}`,
         [
           { text: 'Batal', style: 'cancel' },
-          { 
-            text: 'Tetap Approve', 
+          {
+            text: 'Tetap Approve',
             style: 'destructive',
-            onPress: () => {
+            onPress: async () => {
+              await writeStatus('approved');
               Alert.alert('Sukses', 'Event berhasil di-Approve.', [
-                { text: 'OK', onPress: () => router.replace('/admin-dashboard') }
+                { text: 'OK', onPress: () => router.replace('/admin-dashboard') },
               ]);
-            }
-          }
+            },
+          },
         ]
       );
     } else {
-      Alert.alert('Sukses', 'Event berhasil di-Approve secara menyeluruh.', [
-        { text: 'OK', onPress: () => router.replace('/admin-dashboard') }
+      Alert.alert('Konfirmasi', 'Approve event ini?', [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            await writeStatus('approved');
+            Alert.alert('Sukses', 'Event berhasil di-Approve secara menyeluruh.', [
+              { text: 'OK', onPress: () => router.replace('/admin-dashboard') },
+            ]);
+          },
+        },
       ]);
     }
   };
 
   const handleReject = () => {
-    Alert.alert('Ditolak', 'Event telah di-Reject.', [
-      { text: 'OK', onPress: () => router.replace('/admin-dashboard') }
+    Alert.alert('Konfirmasi', 'Reject event ini?', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: async () => {
+          await writeStatus('rejected');
+          Alert.alert('Ditolak', 'Event telah di-Reject.', [
+            { text: 'OK', onPress: () => router.replace('/admin-dashboard') },
+          ]);
+        },
+      },
     ]);
   };
 
-  /**
-   * Reusable Checkbox Component
-   */
-  const CheckboxItem = ({ 
-    label, 
-    isChecked, 
-    onToggle, 
-    isRedText = false 
-  }: { 
-    label: string, 
-    isChecked: boolean, 
-    onToggle: () => void, 
-    isRedText?: boolean 
+  // ---------------------------------------------------------------------------
+  // Reusable checkbox component
+  // ---------------------------------------------------------------------------
+  const CheckboxItem = ({
+    label, isChecked, onToggle, isRedText = false,
+  }: {
+    label: string; isChecked: boolean; onToggle: () => void; isRedText?: boolean;
   }) => (
     <TouchableOpacity style={styles.checkboxRow} onPress={onToggle} activeOpacity={0.7}>
       <View style={[styles.checkboxSquare, isChecked && styles.checkboxChecked]}>
@@ -145,24 +228,79 @@ export default function AdminCurationScreen() {
     </TouchableOpacity>
   );
 
+  // ---------------------------------------------------------------------------
+  // Poster area — tampilkan gambar dari URL jika valid, fallback ke kotak hijau
+  // ---------------------------------------------------------------------------
+  const hasPosterUrl = pendingEvent?.posterUrl && pendingEvent.posterUrl.startsWith('http');
+
+  const PosterArea = () => {
+    if (!pendingEvent) return <View style={styles.posterPlaceholder} />;
+    if (hasPosterUrl && !posterError) {
+      return (
+        <Image
+          source={{ uri: pendingEvent.posterUrl }}
+          style={styles.posterImage}
+          resizeMode="cover"
+          onError={() => setPosterError(true)}
+        />
+      );
+    }
+    return <View style={styles.posterPlaceholder} />;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Loading / no pending events
+  // ---------------------------------------------------------------------------
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#2F4454" />
+          <Text style={styles.centerText}>Memuat event...</Text>
+        </View>
+        <AdminBottomNav />
+      </SafeAreaView>
+    );
+  }
+
+  if (!pendingEvent) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
+        <View style={styles.centerContainer}>
+          <Ionicons name="checkmark-circle-outline" size={60} color="#4A8060" />
+          <Text style={[styles.centerText, { marginTop: 16 }]}>
+            Tidak ada event yang perlu dikurasi saat ini.
+          </Text>
+          <TouchableOpacity
+            style={styles.backDashBtn}
+            onPress={() => router.replace('/admin-dashboard')}
+          >
+            <Text style={styles.backDashBtnText}>← Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+        <AdminBottomNav />
+      </SafeAreaView>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
-      
-      {/* HEADER: BACK BUTTON & LOGO */}
+
+      {/* HEADER */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeftContainer}>
-          {/* TOMBOL BACK HEADER HANYA MUNCUL DI STEP 1 */}
           {currentStep === 1 && (
-            <TouchableOpacity 
-              style={styles.headerBackButton} 
-              onPress={() => router.back()}
-            >
-              <Text style={styles.headerBackText}>{"< Back"}</Text>
+            <TouchableOpacity style={styles.headerBackButton} onPress={() => router.back()}>
+              <Text style={styles.headerBackText}>{'< Back'}</Text>
             </TouchableOpacity>
           )}
         </View>
-
         <View style={styles.logoHeader}>
           <Text style={styles.logoText}>EVENT</Text>
           <Text style={styles.logoText}>RADAR</Text>
@@ -170,45 +308,55 @@ export default function AdminCurationScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* PAGE TITLE */}
+
         <Text style={styles.pageTitle}>Kurasi Event</Text>
 
-        {/* STEP 1 & 2 SHARED HEADER: POSTER & DESCRIPTION */}
+        {/* EVENT INFO HEADER (Step 1 & 2) */}
         {currentStep < 3 && (
           <View>
             <View style={styles.eventInfoHeader}>
-              <View style={styles.posterPlaceholder} />
-              <Text style={styles.eventTitleText}>Judul Event{'\n'}yang diajukan</Text>
+              <PosterArea />
+              <View style={styles.eventInfoText}>
+                <Text style={styles.eventTitleText} numberOfLines={2}>{pendingEvent.title}</Text>
+                <Text style={styles.eventOrgText} numberOfLines={1}>{pendingEvent.organizer}</Text>
+                <Text style={styles.eventCatText} numberOfLines={1}>{pendingEvent.category}</Text>
+              </View>
             </View>
 
             <View style={styles.descriptionBox}>
-              <Text style={styles.descriptionText}>Deskripsi event</Text>
+              <ScrollView style={{ maxHeight: 90 }} nestedScrollEnabled>
+                <Text style={styles.descriptionText}>{pendingEvent.description}</Text>
+              </ScrollView>
             </View>
           </View>
         )}
 
-        {/* --- STEP 1: KELENGKAPAN EVENT --- */}
+        {/* STEP 1: KELENGKAPAN */}
         {currentStep === 1 && (
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Kelengkapan Event</Text>
             <View style={styles.checkboxGrid}>
               <View style={styles.checkboxColumn}>
-                <CheckboxItem label="Nama event" isChecked={completenessChecks[0]} onToggle={() => toggleCheck(0, 'completeness')} />
-                <CheckboxItem label="Penyelenggara" isChecked={completenessChecks[1]} onToggle={() => toggleCheck(1, 'completeness')} />
-                <CheckboxItem label="Kategori" isChecked={completenessChecks[2]} onToggle={() => toggleCheck(2, 'completeness')} />
-                <CheckboxItem label="Deskripsi" isChecked={completenessChecks[3]} onToggle={() => toggleCheck(3, 'completeness')} />
-                <CheckboxItem label="Poster" isChecked={completenessChecks[4]} onToggle={() => toggleCheck(4, 'completeness')} />
+                {completenessLabels.slice(0, 5).map((label, i) => (
+                  <CheckboxItem
+                    key={i}
+                    label={label}
+                    isChecked={completenessChecks[i]}
+                    onToggle={() => toggleCheck(i, 'completeness')}
+                  />
+                ))}
               </View>
               <View style={styles.checkboxColumn}>
-                <CheckboxItem label="Periode Event" isChecked={completenessChecks[5]} onToggle={() => toggleCheck(5, 'completeness')} />
-                <CheckboxItem label="Lokasi" isChecked={completenessChecks[6]} onToggle={() => toggleCheck(6, 'completeness')} />
-                <CheckboxItem label="Link Pendaftaran" isChecked={completenessChecks[7]} onToggle={() => toggleCheck(7, 'completeness')} />
-                <CheckboxItem label="Info User Lengkap" isChecked={completenessChecks[8]} onToggle={() => toggleCheck(8, 'completeness')} />
-                <CheckboxItem label="Contact Person" isChecked={completenessChecks[9]} onToggle={() => toggleCheck(9, 'completeness')} />
+                {completenessLabels.slice(5).map((label, i) => (
+                  <CheckboxItem
+                    key={i + 5}
+                    label={label}
+                    isChecked={completenessChecks[i + 5]}
+                    onToggle={() => toggleCheck(i + 5, 'completeness')}
+                  />
+                ))}
               </View>
             </View>
-            
             <View style={[styles.stepNavigationRow, { justifyContent: 'flex-end' }]}>
               <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep(2)}>
                 <Text style={styles.nextButtonText}>Next</Text>
@@ -217,29 +365,34 @@ export default function AdminCurationScreen() {
           </View>
         )}
 
-        {/* --- STEP 2: KELAYAKAN EVENT --- */}
+        {/* STEP 2: KELAYAKAN */}
         {currentStep === 2 && (
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Kelayakan Event</Text>
             <View style={styles.checkboxGrid}>
               <View style={styles.checkboxColumn}>
-                <CheckboxItem label="Sesi akademik" isChecked={eligibilityChecks[0]} onToggle={() => toggleCheck(0, 'eligibility')} />
-                <CheckboxItem label="Target Peserta jelas" isChecked={eligibilityChecks[1]} onToggle={() => toggleCheck(1, 'eligibility')} />
-                <CheckboxItem label="Struktur event jelas" isChecked={eligibilityChecks[2]} onToggle={() => toggleCheck(2, 'eligibility')} />
-                <CheckboxItem label="Dilarang merokok" isChecked={eligibilityChecks[3]} onToggle={() => toggleCheck(3, 'eligibility')} />
-                <CheckboxItem label="Kelayakan poster" isChecked={eligibilityChecks[4]} onToggle={() => toggleCheck(4, 'eligibility')} />
+                {eligibilityLabels.slice(0, 5).map((label, i) => (
+                  <CheckboxItem
+                    key={i}
+                    label={label}
+                    isChecked={eligibilityChecks[i]}
+                    onToggle={() => toggleCheck(i, 'eligibility')}
+                  />
+                ))}
               </View>
               <View style={styles.checkboxColumn}>
-                <CheckboxItem label="Sesi non-akademik" isChecked={eligibilityChecks[5]} onToggle={() => toggleCheck(5, 'eligibility')} />
-                <CheckboxItem label="Lokasi strategis" isChecked={eligibilityChecks[6]} onToggle={() => toggleCheck(6, 'eligibility')} />
-                <CheckboxItem label="Struktur Panitia jelas" isChecked={eligibilityChecks[7]} onToggle={() => toggleCheck(7, 'eligibility')} />
-                <CheckboxItem label="Sesuai aturan kampus" isChecked={eligibilityChecks[8]} onToggle={() => toggleCheck(8, 'eligibility')} />
-                <CheckboxItem label="Tidak melanggar hukum" isChecked={eligibilityChecks[9]} onToggle={() => toggleCheck(9, 'eligibility')} isRedText={true} />
+                {eligibilityLabels.slice(5).map((label, i) => (
+                  <CheckboxItem
+                    key={i + 5}
+                    label={label}
+                    isChecked={eligibilityChecks[i + 5]}
+                    onToggle={() => toggleCheck(i + 5, 'eligibility')}
+                    isRedText={i + 5 === 9}
+                  />
+                ))}
               </View>
             </View>
-
             <View style={styles.stepNavigationRow}>
-              {/* TOMBOL BACK DI BAWAH UNTUK STEP 2 */}
               <TouchableOpacity style={styles.backStepButton} onPress={() => setCurrentStep(1)}>
                 <Text style={styles.backStepButtonText}>Back</Text>
               </TouchableOpacity>
@@ -250,22 +403,20 @@ export default function AdminCurationScreen() {
           </View>
         )}
 
-        {/* --- STEP 3: KEPUTUSAN KURASI --- */}
+        {/* STEP 3: KEPUTUSAN */}
         {currentStep === 3 && (
           <View style={styles.step3Container}>
-            
-            {/* Mockup visual Pie Chart statis, persentase teks dinamis */}
             <View style={styles.pieContainer}>
               <View style={styles.pieBase} />
               <View style={styles.pieQuadrant} />
             </View>
 
-            {/* TEKS PERSENTASE DINAMIS */}
-            <Text style={styles.pieChartLabel}>Event memenuhi {eligibilityPercentage}%{'\n'}Kelayakan</Text>
+            <Text style={styles.pieChartLabel}>
+              Event memenuhi {eligibilityPercentage}%{'\n'}Kelayakan
+            </Text>
 
-            {/* DAFTAR PARAMETER DINAMIS */}
             <View style={styles.parameterBox}>
-              <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={styles.parameterScroll}>
+              <ScrollView showsVerticalScrollIndicator contentContainerStyle={styles.parameterScroll}>
                 {checkedParams.length > 0 ? (
                   checkedParams.map((param, index) => (
                     <Text key={index} style={styles.parameterItemText}>
@@ -281,7 +432,6 @@ export default function AdminCurationScreen() {
             </View>
 
             <View style={styles.actionRow}>
-              {/* TOMBOL BACK DI BAWAH UNTUK STEP 3 */}
               <TouchableOpacity style={[styles.actionBtn, styles.backBtn]} onPress={() => setCurrentStep(2)}>
                 <Text style={styles.actionBtnText}>Back</Text>
               </TouchableOpacity>
@@ -292,26 +442,48 @@ export default function AdminCurationScreen() {
                 <Text style={styles.actionBtnText}>Approve</Text>
               </TouchableOpacity>
             </View>
-
           </View>
         )}
 
       </ScrollView>
 
-      {/* ADMIN BOTTOM NAVIGATION */}
       <AdminBottomNav />
     </SafeAreaView>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#E8F5CC',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  
-  /* HEADER ROW STYLES */
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  centerText: {
+    fontSize: 16,
+    color: '#2F4454',
+    textAlign: 'center',
+  },
+  backDashBtn: {
+    marginTop: 20,
+    backgroundColor: '#2F4454',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backDashBtnText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -320,7 +492,7 @@ const styles = StyleSheet.create({
     paddingTop: 15,
   },
   headerLeftContainer: {
-    flex: 1, 
+    flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
   },
@@ -347,7 +519,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
-  
   scrollContent: {
     paddingHorizontal: 25,
     paddingTop: 10,
@@ -363,8 +534,8 @@ const styles = StyleSheet.create({
   },
   eventInfoHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    marginBottom: 16,
     paddingHorizontal: 10,
   },
   posterPlaceholder: {
@@ -372,31 +543,51 @@ const styles = StyleSheet.create({
     height: 100,
     backgroundColor: '#A9D08E',
     borderRadius: 10,
-    marginRight: 20,
+    marginRight: 16,
+    flexShrink: 0,
+  },
+  posterImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    marginRight: 16,
+    flexShrink: 0,
+  },
+  eventInfoText: {
+    flex: 1,
+    justifyContent: 'center',
   },
   eventTitleText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2F4454',
+    marginBottom: 4,
+  },
+  eventOrgText: {
+    fontSize: 13,
+    color: '#556B7D',
+    marginBottom: 2,
+  },
+  eventCatText: {
+    fontSize: 12,
+    color: '#7A8B99',
+    fontStyle: 'italic',
   },
   descriptionBox: {
     backgroundColor: '#F8FAF8',
     borderWidth: 2,
     borderColor: '#2F4454',
     borderRadius: 10,
-    height: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
+    minHeight: 80,
+    padding: 15,
     marginBottom: 30,
   },
   descriptionText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
+    fontSize: 14,
+    color: '#2F4454',
+    lineHeight: 20,
   },
-  sectionContainer: {
-    flex: 1,
-  },
+  sectionContainer: { flex: 1 },
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -408,9 +599,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  checkboxColumn: {
-    width: '48%',
-  },
+  checkboxColumn: { width: '48%' },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -425,9 +614,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  checkboxChecked: {
-    backgroundColor: '#2F4454',
-  },
+  checkboxChecked: { backgroundColor: '#2F4454' },
   checkboxLabel: {
     fontSize: 11,
     color: '#556B7D',
@@ -437,8 +624,6 @@ const styles = StyleSheet.create({
     color: '#B22222',
     fontWeight: 'bold',
   },
-  
-  /* STEP NAVIGATION STYLES */
   stepNavigationRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -466,8 +651,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  
-  /* STEP 3 STYLES */
   step3Container: {
     alignItems: 'center',
     marginTop: 10,
@@ -506,13 +689,11 @@ const styles = StyleSheet.create({
     borderColor: '#2F4454',
     borderRadius: 10,
     width: '100%',
-    height: 160, // Sedikit dilebarkan biar muat banyak list
+    height: 160,
     marginBottom: 30,
     overflow: 'hidden',
   },
-  parameterScroll: {
-    padding: 15,
-  },
+  parameterScroll: { padding: 15 },
   parameterItemText: {
     fontSize: 13,
     fontWeight: 'bold',
@@ -523,7 +704,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    paddingHorizontal: 0,
   },
   actionBtn: {
     width: '31%',
@@ -531,15 +711,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  backBtn: {
-    backgroundColor: '#7A8B99',
-  },
-  rejectBtn: {
-    backgroundColor: '#8B0000',
-  },
-  approveBtn: {
-    backgroundColor: '#2F4454',
-  },
+  backBtn:    { backgroundColor: '#7A8B99' },
+  rejectBtn:  { backgroundColor: '#8B0000' },
+  approveBtn: { backgroundColor: '#2F4454' },
   actionBtnText: {
     color: '#FFF',
     fontSize: 14,

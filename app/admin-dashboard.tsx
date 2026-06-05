@@ -3,82 +3,89 @@
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth, database } from "../database";
-
-// Import the Admin specific bottom navigation component
 import AdminBottomNav from "@/components/admin-bottom-nav";
 
 /**
- * AdminDashboardScreen Component
- * Serves as the main landing page for users with the 'admin' role.
- * Displays a personalized greeting, current date, pending request shortcuts, and performance metrics.
+ * AdminDashboardScreen
+ * Landing page untuk admin dengan lingkaran logo yang mengecil saat di-scroll.
  */
 export default function AdminDashboardScreen() {
   const router = useRouter();
-
-  // State for dynamically displaying the admin's name
-  const [adminName, setAdminName] = useState("Admin 1");
-  // State for displaying the current real-time date
+  const [adminName, setAdminName]     = useState("Admin 1");
   const [currentDate, setCurrentDate] = useState("");
 
-  /**
-   * useEffect Hook
-   * 1. Generates and sets the current date in Indonesian format on component mount.
-   * 2. Listens to Firebase Auth state to fetch the logged-in admin's profile data from the Realtime Database.
-   */
+  // Animated value untuk scroll position
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    // 1. Generate current date (e.g., "Senin, 1 Juni")
     const dateOptions: Intl.DateTimeFormatOptions = {
       weekday: "long",
       day: "numeric",
       month: "long",
     };
-    const formattedDate = new Date().toLocaleDateString("id-ID", dateOptions);
-    setCurrentDate(formattedDate);
+    setCurrentDate(new Date().toLocaleDateString("id-ID", dateOptions));
 
-    // 2. Fetch Admin Profile from Firebase Realtime Database
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         const userRef = ref(database, "User/" + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
           const data = snapshot.val();
-
-          // Prioritize fullname, fallback to username if fullname is empty
-          if (data && data.fullname) {
-            setAdminName(data.fullname);
-          } else if (data && data.username) {
-            setAdminName(data.username);
-          }
+          if (data?.fullname)       setAdminName(data.fullname);
+          else if (data?.username)  setAdminName(data.username);
         });
-
-        // Cleanup database listener on unmount
         return () => unsubscribeDb();
       }
     });
-
-    // Cleanup auth listener on unmount
     return () => unsubscribe();
   }, []);
 
-  /**
-   * renderBarChart
-   * Helper function to render a simulated bar chart using pure React Native Views.
-   * Used inside the "Perkembangan Views" metrics card to avoid heavy third-party chart libraries.
-   * * @returns {JSX.Element} The bar chart UI component
-   */
+  // ---------------------------------------------------------------------------
+  // Interpolated circle sizes — mengecil seiring scroll turun
+  // ---------------------------------------------------------------------------
+  const circleOuterSize = scrollY.interpolate({
+    inputRange: [0, 160],
+    outputRange: [320, 160],
+    extrapolate: "clamp",
+  });
+  const circleMiddleSize = scrollY.interpolate({
+    inputRange: [0, 160],
+    outputRange: [220, 110],
+    extrapolate: "clamp",
+  });
+  const circleInnerSize = scrollY.interpolate({
+    inputRange: [0, 160],
+    outputRange: [120, 60],
+    extrapolate: "clamp",
+  });
+  const circleOuterTop = scrollY.interpolate({
+    inputRange: [0, 160],
+    outputRange: [-80, -40],
+    extrapolate: "clamp",
+  });
+  const circleOuterRight = scrollY.interpolate({
+    inputRange: [0, 160],
+    outputRange: [-80, -40],
+    extrapolate: "clamp",
+  });
+  const logoFontSize = scrollY.interpolate({
+    inputRange: [0, 160],
+    outputRange: [14, 8],
+    extrapolate: "clamp",
+  });
+
   const renderBarChart = () => {
-    // Array representing the relative percentage heights of the bars
     const barHeights = [20, 30, 25, 45, 65, 40, 55, 45, 60, 50, 80, 90, 70, 45];
     return (
       <View style={styles.barChartContainer}>
@@ -88,7 +95,7 @@ export default function AdminDashboardScreen() {
             style={[
               styles.bar,
               {
-                height: `${height}%`,
+                height: `${height}%` as any,
                 backgroundColor: index % 2 === 0 ? "#6D8299" : "#2F4454",
               },
             ]}
@@ -102,64 +109,98 @@ export default function AdminDashboardScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
 
-      {/* TOP BACKGROUND GRAPHICS (Concentric Circles) */}
-      <View style={styles.circleOuter}>
-        <View style={styles.circleMiddle}>
-          <View style={styles.circleInner}>
-            <Text style={styles.logoTextSmall}>EVENT</Text>
-            <Text style={styles.logoTextSmall}>RADAR</Text>
-          </View>
-        </View>
-      </View>
+      {/* TOP BACKGROUND GRAPHICS — Concentric Circles (Animated) */}
+      <Animated.View
+        style={[
+          styles.circleOuter,
+          {
+            width:        circleOuterSize,
+            height:       circleOuterSize,
+            borderRadius: Animated.divide(circleOuterSize, 2) as any,
+            top:          circleOuterTop,
+            right:        circleOuterRight,
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.circleMiddle,
+            {
+              width:        circleMiddleSize,
+              height:       circleMiddleSize,
+              borderRadius: Animated.divide(circleMiddleSize, 2) as any,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.circleInner,
+              {
+                width:        circleInnerSize,
+                height:       circleInnerSize,
+                borderRadius: Animated.divide(circleInnerSize, 2) as any,
+              },
+            ]}
+          >
+            <Animated.Text style={[styles.logoTextSmall, { fontSize: logoFontSize }]}>
+              EVENT
+            </Animated.Text>
+            <Animated.Text style={[styles.logoTextSmall, { fontSize: logoFontSize }]}>
+              RADAR
+            </Animated.Text>
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
 
-      <ScrollView
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
       >
-        {/* HEADER SECTION: Greeting & Date */}
+        {/* HEADER SECTION */}
         <View style={styles.headerContainer}>
           <Text style={styles.greetingText}>Halo {adminName}</Text>
           <Text style={styles.dateText}>{currentDate}</Text>
         </View>
 
-        {/* PENDING REQUESTS SECTION: Quick access avatars */}
+        {/* PENDING REQUESTS SECTION */}
         <View style={styles.requestsSection}>
           <Text style={styles.sectionTitle}>Cek Permintaan Sekarang!</Text>
           <View style={styles.avatarRow}>
-            {/* Navigates to the approval/request curation page */}
             <TouchableOpacity
               style={styles.avatarCircle}
-              onPress={() => router.push("/event-form" as any)}
+              onPress={() => router.push("/admin-curation" as any)}
             />
             <TouchableOpacity
               style={styles.avatarCircle}
-              onPress={() => router.push("/event-form" as any)}
+              onPress={() => router.push("/admin-curation" as any)}
             />
             <TouchableOpacity
               style={styles.avatarCircle}
-              onPress={() => router.push("/event-form" as any)}
+              onPress={() => router.push("/admin-curation" as any)}
             />
             <TouchableOpacity
               style={styles.avatarMore}
-              onPress={() => router.push("/event-form" as any)}
+              onPress={() => router.push("/admin-curation" as any)}
             >
               <Text style={styles.avatarMoreText}>3+</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* METRICS GRID SECTION: 2x2 Grid for Dashboard Stats */}
+        {/* METRICS GRID */}
         <View style={styles.gridContainer}>
-          {/* Card 1: Views Development Chart */}
           <TouchableOpacity style={styles.gridCard} activeOpacity={0.8}>
             <View style={styles.chartArea}>{renderBarChart()}</View>
             <Text style={styles.cardLabel}>Perkembangan Views</Text>
           </TouchableOpacity>
 
-          {/* Card 2: Curation Result Pie Chart */}
           <TouchableOpacity style={styles.gridCard} activeOpacity={0.8}>
             <View style={styles.chartArea}>
-              {/* Simulated Pie Chart using pure React Native Views */}
               <View style={styles.pieChartBase}>
                 <View style={styles.pieChartCutout} />
               </View>
@@ -169,33 +210,26 @@ export default function AdminDashboardScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Card 3: Active Events Counter */}
           <TouchableOpacity style={styles.gridCard} activeOpacity={0.8}>
             <View style={styles.numberArea}>
               <Text style={styles.bigNumber}>25</Text>
             </View>
-            <Text style={styles.cardLabel}>
-              Event yang berjalan di bulan ini
-            </Text>
+            <Text style={styles.cardLabel}>Event yang berjalan di bulan ini</Text>
           </TouchableOpacity>
 
-          {/* Card 4: Pending Requests Counter */}
           <TouchableOpacity
             style={styles.gridCard}
             activeOpacity={0.8}
-            onPress={() => router.push("/event-form" as any)}
+            onPress={() => router.push("/admin-curation" as any)}
           >
             <View style={styles.numberArea}>
               <Text style={styles.bigNumber}>25</Text>
             </View>
-            <Text style={styles.cardLabel}>
-              Permintaan event (masa pending)
-            </Text>
+            <Text style={styles.cardLabel}>Permintaan event (masa pending)</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
-      {/* BOTTOM NAVIGATION BAR */}
       <AdminBottomNav />
     </SafeAreaView>
   );
@@ -207,14 +241,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8F5CC",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  // CONCENTRIC CIRCLES STYLING
+  // Concentric circles — sekarang pakai Animated.View, style non-animasi saja di sini
   circleOuter: {
     position: "absolute",
-    top: -80,
-    right: -80,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
     borderWidth: 1,
     borderColor: "#7A8B99",
     justifyContent: "center",
@@ -222,37 +251,29 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   circleMiddle: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
     borderWidth: 1,
     borderColor: "#7A8B99",
     justifyContent: "center",
     alignItems: "center",
   },
   circleInner: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
     borderWidth: 1,
     borderColor: "#7A8B99",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#E8F5CC", // Matches main background
+    backgroundColor: "#E8F5CC",
   },
   logoTextSmall: {
     color: "#2F4454",
-    fontSize: 14,
     fontWeight: "900",
     letterSpacing: 1,
     lineHeight: 16,
   },
   scrollContent: {
-    paddingTop: 80, // Leaves space for the top circle graphics
+    paddingTop: 80,
     paddingHorizontal: 25,
-    paddingBottom: 100, // Leaves space for the BottomNav
+    paddingBottom: 100,
   },
-  // HEADER STYLING
   headerContainer: {
     marginBottom: 40,
     zIndex: 1,
@@ -265,10 +286,9 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: "#A2B09F", // Faint green/grey color
+    color: "#A2B09F",
     fontWeight: "500",
   },
-  // REQUESTS SECTION STYLING
   requestsSection: {
     marginBottom: 35,
     zIndex: 1,
@@ -305,7 +325,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-  // METRICS GRID STYLING
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -318,7 +337,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 15,
     marginBottom: 20,
-    aspectRatio: 0.85, // Adjusts height relative to width dynamically
+    aspectRatio: 0.85,
     justifyContent: "space-between",
   },
   cardLabel: {
@@ -333,7 +352,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
-  // BAR CHART STYLING (Card 1)
   barChartContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -345,7 +363,6 @@ const styles = StyleSheet.create({
     width: 4,
     borderRadius: 2,
   },
-  // PIE CHART STYLING (Card 2)
   pieChartBase: {
     width: 90,
     height: 90,
@@ -360,7 +377,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#6D8299",
     borderTopRightRadius: 45,
   },
-  // BIG NUMBER STYLING (Cards 3 & 4)
   numberArea: {
     flex: 1,
     justifyContent: "center",

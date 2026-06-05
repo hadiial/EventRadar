@@ -1,379 +1,483 @@
 // File: app/admin-schedule.tsx
+// Admin jadwal — menampilkan semua event approved dari database dalam grid 2 kolom
+// Event yang di-bookmark admin mendapatkan border highlight (seperti jadwal.tsx user)
 
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { onAuthStateChanged } from "firebase/auth";
-import { onValue, ref } from "firebase/database";
-import React, { useEffect, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { onValue, ref, update } from 'firebase/database';
+import React, { useEffect, useState } from 'react';
 import {
-  FlatList,
+  Alert,
   Platform,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-} from "react-native";
-import { auth, database } from "../database";
+} from 'react-native';
+import { auth, database } from '../database';
+import AdminBottomNav from '@/components/admin-bottom-nav';
+import { bookmarkStore } from '../store/bookmarkStore';
 
-import AdminBottomNav from "@/components/admin-bottom-nav";
-
-/**
- * Interface for Event Schedule Data
- */
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 interface ScheduleItem {
-  id: string;
-  dateNum: string;
-  year: string;
-  month: string;
+  key:       string;  // Firebase event key (e.g., 'event_id_1')
+  dateNum:   string;  // Day number from 'Periode mulai'
+  year:      string;
+  month:     string;
   eventName: string;
-  isHighlighted?: boolean; // Determines if the card has a thick blue border
+  posterUrl: string;
 }
 
-// Dummy data for initial UI setup.
-const DUMMY_SCHEDULE: ScheduleItem[] = [
-  {
-    id: "1",
-    dateNum: "12",
-    year: "2025",
-    month: "Desember",
-    eventName: "Nama Event",
-  },
-  {
-    id: "2",
-    dateNum: "12",
-    year: "2025",
-    month: "Desember",
-    eventName: "Nama Event",
-  },
-  {
-    id: "3",
-    dateNum: "12",
-    year: "2025",
-    month: "Desember",
-    eventName: "Nama Event",
-  },
-  {
-    id: "4",
-    dateNum: "12",
-    year: "2025",
-    month: "Desember",
-    eventName: "Nama Event",
-    isHighlighted: true,
-  },
-  {
-    id: "5",
-    dateNum: "12",
-    year: "2025",
-    month: "Desember",
-    eventName: "Nama Event",
-    isHighlighted: true,
-  },
-  {
-    id: "6",
-    dateNum: "12",
-    year: "2025",
-    month: "Desember",
-    eventName: "Nama Event",
-  },
-];
+const ITEMS_PER_PAGE = 6; // 3 rows × 2 columns
 
-/**
- * AdminScheduleScreen Component
- * Displays a grid of scheduled events for the admin to manage.
- * Includes a pagination UI at the bottom.
- */
+// ---------------------------------------------------------------------------
+// Helper: parse "DD MM, YY" or "DD Mon, YY" → { day, month, year }
+// ---------------------------------------------------------------------------
+function parseDateParts(dateStr: string): { day: string; month: string; year: string } {
+  const MONTHS_ID: Record<number, string> = {
+    1: 'Januari', 2: 'Februari', 3: 'Maret', 4: 'April',
+    5: 'Mei', 6: 'Juni', 7: 'Juli', 8: 'Agustus',
+    9: 'September', 10: 'Oktober', 11: 'November', 12: 'Desember',
+  };
+  const ABBR_ID: Record<string, string> = {
+    jan: 'Januari', feb: 'Februari', mar: 'Maret', apr: 'April',
+    mei: 'Mei', may: 'Mei', jun: 'Juni', jul: 'Juli',
+    agu: 'Agustus', aug: 'Agustus', sep: 'September',
+    okt: 'Oktober', oct: 'Oktober', nov: 'November', des: 'Desember', dec: 'Desember',
+  };
+
+  if (!dateStr || dateStr === '-') return { day: '??', month: '???', year: '????' };
+
+  // Format numerik: "05 06, 26"
+  const numMatch = dateStr.match(/^(\d{1,2})\s+(\d{1,2}),?\s*(\d{2,4})$/);
+  if (numMatch) {
+    const day   = numMatch[1].padStart(2, '0');
+    const mNum  = parseInt(numMatch[2], 10);
+    const yr    = numMatch[3].length === 2 ? `20${numMatch[3]}` : numMatch[3];
+    return { day, month: MONTHS_ID[mNum] ?? `Bln ${mNum}`, year: yr };
+  }
+
+  // Format teks: "05 Jun, 26"
+  const txtMatch = dateStr.match(/^(\d{1,2})\s+([a-zA-Z]{3}),?\s*(\d{2,4})$/);
+  if (txtMatch) {
+    const day  = txtMatch[1].padStart(2, '0');
+    const abbr = txtMatch[2].toLowerCase();
+    const yr   = txtMatch[3].length === 2 ? `20${txtMatch[3]}` : txtMatch[3];
+    return { day, month: ABBR_ID[abbr] ?? txtMatch[2], year: yr };
+  }
+
+  // Fallback: gunakan teks apa adanya
+  return { day: '??', month: dateStr, year: '' };
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function AdminScheduleScreen() {
   const router = useRouter();
 
-  // State for Admin Name
-  const [adminName, setAdminName] = useState("Admin");
-  // State for Pagination (Simulated)
-  const [currentPage, setCurrentPage] = useState(1);
+  const [adminName, setAdminName]       = useState('Admin');
+  const [adminFakultas, setAdminFakultas] = useState('');
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
+  const [currentPage, setCurrentPage]   = useState(1);
 
-  /**
-   * Fetch Admin Profile from Firebase
-   */
+  // Subscribe ke bookmarkStore untuk re-render saat bookmark berubah
+  const [, forceUpdate] = useState(0);
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const userRef = ref(database, "User/" + user.uid);
-        const unsubscribeDb = onValue(userRef, (snapshot) => {
-          const data = snapshot.val();
-          if (data && data.fullname) {
-            setAdminName(data.fullname);
-          } else if (data && data.username) {
-            setAdminName(data.username);
-          }
-        });
-        return () => unsubscribeDb();
-      }
-    });
-    return () => unsubscribe();
+    const unsub = bookmarkStore.subscribe(() => forceUpdate((n) => n + 1));
+    return unsub;
   }, []);
 
-  /**
-   * Renders a single event card within the FlatList grid.
-   */
-  const renderScheduleCard = ({ item }: { item: ScheduleItem }) => (
-    <TouchableOpacity
-      style={[styles.card, item.isHighlighted && styles.cardHighlighted]}
-      activeOpacity={0.8}
-      onPress={() =>
-        router.push({
-          pathname: "/admin-schedule-detail" as any,
-          params: {
-            id: item.id,
-            name: item.eventName,
-            day: item.dateNum,
-            month: item.month,
-            year: item.year,
-          },
-        })
+  // Fetch admin profile
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(database, 'User/' + user.uid);
+        const unsubDb = onValue(userRef, (snap) => {
+          const data = snap.val();
+          if (data?.fullname)      setAdminName(data.fullname);
+          else if (data?.username) setAdminName(data.username);
+          if (data?.fakultas)      setAdminFakultas(data.fakultas);
+        });
+        return () => unsubDb();
       }
-    >
-      {/* Top Section: Date & Blue Square */}
-      <View style={styles.cardHeader}>
-        <View style={styles.dateContainer}>
-          <Text style={styles.dateNum}>{item.dateNum}</Text>
-          <View style={styles.yearMonthContainer}>
-            <Text style={styles.dateYear}>{item.year}</Text>
-            <Text style={styles.dateMonth}>{item.month}</Text>
-          </View>
-        </View>
-        <View style={styles.blueSquare} />
-      </View>
+    });
+    return () => unsubAuth();
+  }, []);
 
-      {/* Middle Section: Event Name */}
-      <Text style={styles.eventName}>{item.eventName}</Text>
+  // Fetch approved events dari Firebase
+  useEffect(() => {
+    const eventsRef = ref(database, 'events');
+    const unsubDb = onValue(eventsRef, (snap) => {
+      if (!snap.exists()) { setScheduleItems([]); return; }
+      const raw = snap.val() as Record<string, any>;
+      const items: ScheduleItem[] = Object.entries(raw)
+        .filter(([, val]) => val?.status === 'approved')
+        .map(([key, val]) => {
+          const { day, month, year } = parseDateParts(val['Periode mulai'] || '');
+          return {
+            key,
+            dateNum:   day,
+            year,
+            month,
+            eventName: val['Nama Event']   || 'Event',
+            posterUrl: val['upload poster'] || '',
+          };
+        });
+      setScheduleItems(items);
+      setCurrentPage(1); // Reset ke halaman pertama saat data berubah
+    });
+    return () => unsubDb();
+  }, []);
 
-      {/* Bottom Section: Edit Link */}
-      <TouchableOpacity
-        style={styles.editLinkContainer}
-        onPress={(e) => {
-          e.stopPropagation?.();
-          router.push({
-            pathname: "/jadwal-detail" as any,
-            params: {
-              id: item.id,
-              name: item.eventName,
-              day: item.dateNum,
-              month: item.month,
-              year: item.year,
-            },
-          });
-        }}
-      >
-        <Text style={styles.editLinkText}>Ubah setelan event</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
+  const totalPages  = Math.max(1, Math.ceil(scheduleItems.length / ITEMS_PER_PAGE));
+  const pagedItems  = scheduleItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
+      <StatusBar barStyle="dark-content" backgroundColor="#A9D08E" />
 
-      {/* HEADER SECTION */}
+      {/* HEADER — sama seperti jadwal.tsx user */}
       <View style={styles.header}>
-        <View style={styles.avatarPlaceholder} />
-        <Text style={styles.adminName}>{adminName}</Text>
+        <View style={styles.userInfo}>
+          <View style={styles.avatarPlaceholder} />
+          <View>
+            <Text style={styles.userName}>{adminName}</Text>
+            {adminFakultas ? <Text style={styles.userMajor}>{adminFakultas}</Text> : null}
+          </View>
+        </View>
       </View>
 
-      {/* PAGE TITLE */}
-      <View style={styles.titleContainer}>
-        <Ionicons name="calendar-outline" size={28} color="#2F4454" />
-        <Text style={styles.pageTitle}>Jadwal Kegiatan</Text>
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-      {/* GRID LIST SECTION */}
-      <FlatList
-        data={DUMMY_SCHEDULE}
-        renderItem={renderScheduleCard}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        // PAGINATION FOOTER
-        ListFooterComponent={
-          <View style={styles.paginationContainer}>
-            <TouchableOpacity>
-              <Ionicons name="chevron-back" size={24} color="#2F4454" />
+        {/* SECTION TITLE */}
+        <View style={styles.sectionHeader}>
+          <Ionicons name="calendar" size={18} color="#2F4454" />
+          <Text style={styles.sectionTitle}>Jadwal Kegiatan</Text>
+        </View>
+
+        {/* GRID */}
+        {scheduleItems.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={48} color="#A9D08E" />
+            <Text style={styles.emptyText}>Belum ada event terjadwal yang disetujui.</Text>
+          </View>
+        ) : (
+          <View style={styles.gridContainer}>
+            {pagedItems.map((item) => {
+              const isBookmarked = bookmarkStore.isBookmarked(item.key);
+
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.gridItem, isBookmarked && styles.gridItemBookmarked]}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/admin-schedule-detail' as any,
+                      params: {
+                        id:       item.key,
+                        name:     item.eventName,
+                        day:      item.dateNum,
+                        month:    item.month,
+                        year:     item.year,
+                        eventKey: item.key,
+                      },
+                    })
+                  }
+                >
+                  {/* Top: tanggal + thumbnail box */}
+                  <View style={styles.gridItemTop}>
+                    <View>
+                      <View style={styles.gridItemDayRow}>
+                        <Text style={styles.gridItemDay}>{item.dateNum}</Text>
+                        <Text style={styles.gridItemYear}>{item.year}</Text>
+                      </View>
+                      <Text style={styles.gridItemMonth}>{item.month}</Text>
+                    </View>
+                    <View style={styles.gridItemImageBox} />
+                  </View>
+
+                  {/* Event name */}
+                  <Text style={styles.gridItemName} numberOfLines={1}>
+                    {item.eventName}
+                  </Text>
+
+                  {/* "Ubah setelan event" → popup Hapus/Biarkan */}
+                  <TouchableOpacity
+                    style={styles.editLinkContainer}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      Alert.alert(
+                        'Ubah Setelan Event',
+                        `Event: ${item.eventName}\n\nApa yang ingin Anda lakukan?`,
+                        [
+                          { text: 'Batal', style: 'cancel' },
+                          {
+                            text: 'Hapus Event',
+                            style: 'destructive',
+                            onPress: () => {
+                              Alert.alert(
+                                'Konfirmasi Hapus',
+                                `Apakah Anda yakin ingin menghapus "${item.eventName}"? Event akan ditandai sebagai ditolak.`,
+                                [
+                                  { text: 'Batal', style: 'cancel' },
+                                  {
+                                    text: 'Hapus',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        await update(ref(database, `events/${item.key}`), { status: 'rejected' });
+                                        bookmarkStore.remove(item.key);
+                                      } catch (err) {
+                                        console.error('Error removing event:', err);
+                                      }
+                                    },
+                                  },
+                                ]
+                              );
+                            },
+                          },
+                          {
+                            text: 'Biarkan',
+                            onPress: () => {/* tidak ada aksi */},
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={styles.editLinkText}>Ubah setelan event</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* PAGINATION */}
+        {totalPages > 1 && (
+          <View style={styles.pagination}>
+            <TouchableOpacity
+              style={styles.pageArrow}
+              onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <Text style={[styles.pageArrowText, currentPage === 1 && styles.pageArrowDisabled]}>
+                {'<'}
+              </Text>
             </TouchableOpacity>
 
-            {[1, 2, 3, 4].map((page) => (
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <TouchableOpacity
                 key={page}
-                style={[
-                  styles.pageDot,
-                  currentPage === page && styles.pageDotActive,
-                ]}
+                style={[styles.pageBtn, page === currentPage && styles.pageBtnActive]}
                 onPress={() => setCurrentPage(page)}
               >
-                <Text
-                  style={[
-                    styles.pageDotText,
-                    currentPage === page && styles.pageDotTextActive,
-                  ]}
-                >
+                <Text style={[styles.pageBtnText, page === currentPage && styles.pageBtnTextActive]}>
                   {page}
                 </Text>
               </TouchableOpacity>
             ))}
 
-            <TouchableOpacity>
-              <Ionicons name="chevron-forward" size={24} color="#2F4454" />
+            <TouchableOpacity
+              style={styles.pageArrow}
+              onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <Text style={[styles.pageArrowText, currentPage === totalPages && styles.pageArrowDisabled]}>
+                {'>'}
+              </Text>
             </TouchableOpacity>
           </View>
-        }
-      />
+        )}
 
-      {/* ADMIN BOTTOM NAVIGATION */}
+      </ScrollView>
+
       <AdminBottomNav />
     </SafeAreaView>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E8F5CC",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    backgroundColor: '#E8F5CC',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  // HEADER STYLES
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    backgroundColor: '#A9D08E',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    paddingTop: 40,
+    paddingBottom: 25,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   avatarPlaceholder: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: "#C4C4C4",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F4F6F6',
     marginRight: 15,
   },
-  adminName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#2F4454",
-  },
-  // TITLE STYLES
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  pageTitle: {
+  userName: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#2F4454",
-    marginLeft: 10,
+    fontWeight: 'bold',
+    color: '#2F4454',
   },
-  // LIST STYLES
-  listContent: {
-    paddingHorizontal: 15,
-    paddingBottom: 110, // Ensure space for BottomNav and Pagination
+  userMajor: {
+    fontSize: 12,
+    color: '#2F4454',
   },
-  row: {
-    justifyContent: "space-between",
-    marginBottom: 15,
+  scrollContent: {
+    paddingBottom: 120,
   },
-  // CARD STYLES
-  card: {
-    width: "48%",
-    backgroundColor: "#A9D08E",
-    borderRadius: 15,
-    padding: 12,
-    justifyContent: "space-between",
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2F4454',
+  },
+  emptyState: {
+    alignItems: 'center',
+    marginTop: 60,
+    gap: 12,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#7A8B99',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  gridItem: {
+    width: '48%',
+    backgroundColor: '#A9D08E',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+    justifyContent: 'space-between',
     minHeight: 130,
   },
-  cardHighlighted: {
+  // Highlight border untuk event yang di-bookmark admin
+  gridItemBookmarked: {
     borderWidth: 2,
-    borderColor: "#2F4454",
+    borderColor: '#2F4454',
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
+  gridItemTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  dateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  gridItemDayRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
   },
-  dateNum: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#2F4454",
-    marginRight: 5,
-    lineHeight: 32,
+  gridItemDay: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2F4454',
   },
-  yearMonthContainer: {
-    justifyContent: "center",
+  gridItemYear: {
+    fontSize: 11,
+    color: '#2F4454',
   },
-  dateYear: {
-    fontSize: 14,
-    color: "#2F4454",
-    lineHeight: 16,
+  gridItemMonth: {
+    fontSize: 11,
+    color: '#2F4454',
+    marginTop: 1,
   },
-  dateMonth: {
-    fontSize: 12,
-    color: "#2F4454",
-    fontWeight: "500",
-    lineHeight: 14,
-  },
-  blueSquare: {
-    width: 35,
-    height: 35,
-    backgroundColor: "#2F4454",
+  gridItemImageBox: {
+    width: 36,
+    height: 36,
     borderRadius: 6,
+    backgroundColor: '#2F4454',
   },
-  eventName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2F4454",
-    marginBottom: 10,
+  gridItemName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2F4454',
+    marginBottom: 6,
   },
   editLinkContainer: {
-    alignSelf: "flex-end",
+    alignSelf: 'flex-end',
   },
   editLinkText: {
     fontSize: 10,
-    color: "#2F4454",
-    textDecorationLine: "underline",
-    fontWeight: "600",
+    color: '#2F4454',
+    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
-  // PAGINATION STYLES
-  paginationContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 10,
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6,
+    paddingBottom: 10,
   },
-  pageDot: {
+  pageArrow: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  pageArrowText: {
+    fontSize: 16,
+    color: '#2F4454',
+    fontWeight: 'bold',
+  },
+  pageArrowDisabled: {
+    color: '#B0BEC5',
+  },
+  pageBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#A9D08E",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 5,
+    backgroundColor: '#A9D08E',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  pageDotActive: {
-    backgroundColor: "#2F4454",
+  pageBtnActive: {
+    backgroundColor: '#2F4454',
   },
-  pageDotText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "bold",
+  pageBtnText: {
+    fontSize: 12,
+    color: '#2F4454',
+    fontWeight: 'bold',
   },
-  pageDotTextActive: {
-    color: "#FFF",
+  pageBtnTextActive: {
+    color: '#FFF',
   },
 });
