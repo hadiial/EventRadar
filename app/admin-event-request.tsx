@@ -114,7 +114,7 @@ export default function AdminEventRequestScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         <View style={styles.titleContainer}>
-          <Ionicons name="bookmark" size={26} color="#2F4454" />
+          <Ionicons name="document-text" size={26} color="#2F4454" />
           <Text style={styles.pageTitle}>Event Request</Text>
         </View>
 

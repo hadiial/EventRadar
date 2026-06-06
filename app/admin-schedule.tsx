@@ -190,9 +190,6 @@ export default function AdminScheduleScreen() {
           <View style={styles.avatarPlaceholder} />
           <View>
             <Text style={styles.userName}>{adminName}</Text>
-            {adminFakultas ? (
-              <Text style={styles.userMajor}>{adminFakultas}</Text>
-            ) : null}
           </View>
         </View>
       </View>

@@ -82,7 +82,7 @@ export default function AdminBottomNav() {
           onPress={() => handleNavigation("/admin-event-request")}
           accessibilityLabel="Go to event requests"
         >
-          <Ionicons name="add-circle-outline" size={32} color="#FFF" />
+          <Ionicons name="document-text-outline" size={32} color="#FFF" />
         </TouchableOpacity>
 
         {/* USER PROFILE BUTTON */}

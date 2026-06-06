@@ -19,17 +19,22 @@ import AdminBottomNav from "@/components/admin-bottom-nav";
 
 /**
  * AdminDashboardScreen
- * Landing page untuk admin dengan lingkaran logo yang mengecil saat di-scroll.
+ * Landing page untuk admin dengan data real-time dari Firebase
  */
 export default function AdminDashboardScreen() {
   const router = useRouter();
-  const [adminName, setAdminName]     = useState("Admin 1");
+  const [adminName, setAdminName]     = useState("Admin");
   const [currentDate, setCurrentDate] = useState("");
+
+  // State untuk menyimpan jumlah event
+  const [pendingCount, setPendingCount]   = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
 
   // Animated value untuk scroll position
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Set Tanggal
     const dateOptions: Intl.DateTimeFormatOptions = {
       weekday: "long",
       day: "numeric",
@@ -37,7 +42,8 @@ export default function AdminDashboardScreen() {
     };
     setCurrentDate(new Date().toLocaleDateString("id-ID", dateOptions));
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // Get Admin Profile
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         const userRef = ref(database, "User/" + user.uid);
         const unsubscribeDb = onValue(userRef, (snapshot) => {
@@ -48,7 +54,36 @@ export default function AdminDashboardScreen() {
         return () => unsubscribeDb();
       }
     });
-    return () => unsubscribe();
+
+    // Get Event Counts dari Firebase
+    const eventsRef = ref(database, 'events');
+    const unsubscribeEvents = onValue(eventsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        let pCount = 0;
+        let aCount = 0;
+        
+        Object.values(data).forEach((evt: any) => {
+          const status = evt.status?.toLowerCase() || 'pending';
+          if (status === 'pending') {
+            pCount++;
+          } else if (status === 'approved') {
+            aCount++;
+          }
+        });
+        
+        setPendingCount(pCount);
+        setApprovedCount(aCount);
+      } else {
+        setPendingCount(0);
+        setApprovedCount(0);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeEvents();
+    };
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -103,6 +138,40 @@ export default function AdminDashboardScreen() {
         ))}
       </View>
     );
+  };
+
+  // Logic untuk render lingkaran antrean secara dinamis
+  const renderPendingAvatars = () => {
+    if (pendingCount === 0) {
+      return <Text style={styles.noPendingText}>Hore! Tidak ada antrean kurasi saat ini.</Text>;
+    }
+
+    const circles = [];
+    const displayCount = Math.min(pendingCount, 3);
+
+    for (let i = 0; i < displayCount; i++) {
+      circles.push(
+        <TouchableOpacity
+          key={i}
+          style={styles.avatarCircle}
+          onPress={() => router.push("/admin-event-request" as any)}
+        />
+      );
+    }
+
+    if (pendingCount > 3) {
+      circles.push(
+        <TouchableOpacity
+          key="more"
+          style={styles.avatarMore}
+          onPress={() => router.push("/admin-event-request" as any)}
+        >
+          <Text style={styles.avatarMoreText}>{pendingCount - 3}+</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return <View style={styles.avatarRow}>{circles}</View>;
   };
 
   return (
@@ -170,36 +239,17 @@ export default function AdminDashboardScreen() {
         {/* PENDING REQUESTS SECTION */}
         <View style={styles.requestsSection}>
           <Text style={styles.sectionTitle}>Cek Permintaan Sekarang!</Text>
-          <View style={styles.avatarRow}>
-            <TouchableOpacity
-              style={styles.avatarCircle}
-              onPress={() => router.push("/admin-curation" as any)}
-            />
-            <TouchableOpacity
-              style={styles.avatarCircle}
-              onPress={() => router.push("/admin-curation" as any)}
-            />
-            <TouchableOpacity
-              style={styles.avatarCircle}
-              onPress={() => router.push("/admin-curation" as any)}
-            />
-            <TouchableOpacity
-              style={styles.avatarMore}
-              onPress={() => router.push("/admin-curation" as any)}
-            >
-              <Text style={styles.avatarMoreText}>3+</Text>
-            </TouchableOpacity>
-          </View>
+          {renderPendingAvatars()}
         </View>
 
         {/* METRICS GRID */}
         <View style={styles.gridContainer}>
-          <TouchableOpacity style={styles.gridCard} activeOpacity={0.8}>
+          <View style={styles.gridCard}>
             <View style={styles.chartArea}>{renderBarChart()}</View>
             <Text style={styles.cardLabel}>Perkembangan Views</Text>
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.gridCard} activeOpacity={0.8}>
+          <View style={styles.gridCard}>
             <View style={styles.chartArea}>
               <View style={styles.pieChartBase}>
                 <View style={styles.pieChartCutout} />
@@ -208,25 +258,23 @@ export default function AdminDashboardScreen() {
             <Text style={styles.cardLabel}>
               Hasil kurasi terakhir kelayakan Event
             </Text>
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.gridCard} activeOpacity={0.8}>
+          {/* Kotak Event Berjalan */}
+          <View style={styles.gridCard}>
             <View style={styles.numberArea}>
-              <Text style={styles.bigNumber}>25</Text>
+              <Text style={styles.bigNumber}>{approvedCount}</Text>
             </View>
             <Text style={styles.cardLabel}>Event yang berjalan di bulan ini</Text>
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.gridCard}
-            activeOpacity={0.8}
-            onPress={() => router.push("/admin-curation" as any)}
-          >
+          {/* Kotak Permintaan Event (Tidak Bisa Diklik) */}
+          <View style={styles.gridCard}>
             <View style={styles.numberArea}>
-              <Text style={styles.bigNumber}>25</Text>
+              <Text style={styles.bigNumber}>{pendingCount}</Text>
             </View>
             <Text style={styles.cardLabel}>Permintaan event (masa pending)</Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </Animated.ScrollView>
 
@@ -241,7 +289,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8F5CC",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
-  // Concentric circles — sekarang pakai Animated.View, style non-animasi saja di sini
   circleOuter: {
     position: "absolute",
     borderWidth: 1,
@@ -324,6 +371,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "bold",
+  },
+  noPendingText: {
+    color: "#7A8B99",
+    fontSize: 14,
+    fontStyle: 'italic',
   },
   gridContainer: {
     flexDirection: "row",
