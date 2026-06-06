@@ -18,7 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import BottomNav from '@/components/bottom-nav';
-import { database } from '../database';
+import { auth, database } from '../database';
 import { ref, get, child, set } from 'firebase/database';
 
 /**
@@ -95,17 +95,19 @@ export default function EventFormScreen() {
       const eventKey = await getNextEventKey();
       const eventsRef = ref(database, `events/${eventKey}`);
       const eventData = {
-        'Nama Event': title,
-        'Nama penyelenggara': createdBy,
-        'Kategori Event': category,
-        'Deskripsi event': description,
-        'upload poster': posterUrl,
-        'Periode mulai': createdAt,
-        'periode akhir': date,
-        'lokasi': location,
-        'Link pendaftaran': registrationLink,
-        'phone': phone,
-        'status': 'pending',
+        'Nama Event': title.trim(),
+        'Nama penyelenggara': createdBy.trim(),
+        'Kategori Event': category.trim(),
+        'Deskripsi event': description.trim(),
+        'upload poster': posterUrl.trim(),
+        'Periode mulai': createdAt.trim(),
+        'periode akhir': date.trim(),
+        'lokasi': location.trim(),
+        'Link pendaftaran': registrationLink.trim(),
+        'phone': phone.trim(),
+        'status': 'pending', 
+        'createdAt': new Date().toISOString(), 
+        'userId': auth.currentUser?.uid,
       };
 
       await set(eventsRef, eventData);
