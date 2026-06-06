@@ -1,8 +1,14 @@
 // File: app/admin-schedule-detail.tsx
-// Detail event untuk admin — menampilkan performa event + tombol Hapus/Biarkan
 
-import React from 'react';
+import AdminBottomNav from "@/components/admin-bottom-nav";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { ref, update } from "firebase/database";
+import React from "react";
 import {
+  Alert,
+  Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -10,73 +16,86 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Platform,
-  Alert,
-  Image,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ref, update } from 'firebase/database';
-import { database } from '../database';
-import AdminBottomNav from '@/components/admin-bottom-nav';
-import { bookmarkStore } from '../store/bookmarkStore';
+} from "react-native";
+import { database } from "../database";
+import { bookmarkStore } from "../store/bookmarkStore";
 
-const BAR_DATA    = [40, 65, 50, 80, 60, 95, 75, 110, 85, 100, 90, 120];
-const BAR_MAX     = 120;
+const BAR_DATA = [40, 65, 50, 80, 60, 95, 75, 110, 85, 100, 90, 120];
+const BAR_MAX = 120;
 const BAR_CHART_H = 80;
 
 export default function AdminScheduleDetailScreen() {
   const router = useRouter();
-  const { name, eventKey, posterUrl } = useLocalSearchParams<{
-    id:        string;
-    name:      string;
-    day:       string;
-    month:     string;
-    year:      string;
-    eventKey?: string;
-    posterUrl?: string;
-  }>();
+  const { name, eventKey, posterUrl, day, month, year, status } =
+    useLocalSearchParams<{
+      id: string;
+      name: string;
+      day: string;
+      month: string;
+      year: string;
+      status?: string;
+      eventKey?: string;
+      posterUrl?: string;
+    }>();
 
-  const eventTitle = name || 'Judul Event';
-  const hasPoster  = posterUrl && posterUrl.startsWith('http');
+  const eventTitle = name || "Judul Event";
+  const eventDate = day && month && year ? `${day} ${month} ${year}` : "-";
+  const eventStatus = status ? status : "approved";
+  const hasPoster = posterUrl && posterUrl.startsWith("http");
+  const isBookmarked = eventKey ? bookmarkStore.isBookmarked(eventKey) : false;
 
   // -------------------------------------------------------------------------
-  // Hapus event: ubah status di Firebase → 'rejected' + un-bookmark
+  // Delete event: update status in Firebase → 'rejected' + remove bookmark
   // -------------------------------------------------------------------------
   const handleHapus = () => {
     Alert.alert(
-      'Hapus Event',
+      "Hapus Event",
       `Apakah Anda yakin ingin menghapus event "${eventTitle}"?\nEvent akan ditandai sebagai ditolak dan tidak lagi tampil di jadwal.`,
       [
-        { text: 'Batal', style: 'cancel' },
+        { text: "Batal", style: "cancel" },
         {
-          text: 'Hapus',
-          style: 'destructive',
+          text: "Hapus",
+          style: "destructive",
           onPress: async () => {
-            // Un-bookmark event ini (jika ada)
+            // Un-bookmark this event (if any)
             if (eventKey) {
               bookmarkStore.remove(eventKey);
               try {
-                // Update status di Firebase
-                await update(ref(database, `events/${eventKey}`), { status: 'rejected' });
+                // Update status in Firebase
+                await update(ref(database, `events/${eventKey}`), {
+                  status: "rejected",
+                });
               } catch (e) {
-                console.error('Error updating event status:', e);
+                console.error("Error updating event status:", e);
               }
             }
-            Alert.alert('Berhasil', 'Event berhasil dihapus dari jadwal.', [
-              { text: 'OK', onPress: () => router.back() },
+            Alert.alert("Berhasil", "Event berhasil dihapus dari jadwal.", [
+              { text: "OK", onPress: () => router.back() },
             ]);
           },
         },
-      ]
+      ],
     );
   };
 
   // -------------------------------------------------------------------------
-  // Biarkan: kembali saja
+  // Bookmark event: save to admin bookmarks and immediately open the bookmark page
   // -------------------------------------------------------------------------
-  const handleBiarkan = () => {
-    router.back();
+  const handleBookmark = () => {
+    if (!eventKey) {
+      return;
+    }
+
+    if (!isBookmarked) {
+      bookmarkStore.toggleDbEvent(eventKey, {
+        title: eventTitle,
+        date: eventDate,
+        status: eventStatus,
+        posterUrl: posterUrl || "",
+      });
+    }
+
+    router.replace("/admin-bookmarks");
   };
 
   return (
@@ -94,8 +113,10 @@ export default function AdminScheduleDetailScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* PAGE TITLE */}
         <Text style={styles.pageTitle}>Detail Event</Text>
 
@@ -134,7 +155,7 @@ export default function AdminScheduleDetailScreen() {
                     styles.bar,
                     {
                       height: (val / BAR_MAX) * BAR_CHART_H,
-                      backgroundColor: i % 2 === 0 ? '#6D8299' : '#2F4454',
+                      backgroundColor: i % 2 === 0 ? "#6D8299" : "#2F4454",
                     },
                   ]}
                 />
@@ -152,7 +173,7 @@ export default function AdminScheduleDetailScreen() {
               <Text style={styles.ringText}>25%</Text>
             </View>
             <Text style={styles.metricLabel}>
-              Valuasi Pendaftaran{'\n'}Setelah klik
+              Valuasi Pendaftaran{"\n"}Setelah klik
             </Text>
           </View>
         </View>
@@ -166,20 +187,37 @@ export default function AdminScheduleDetailScreen() {
         </View>
 
         {/* ---------------------------------------------------------------- */}
-        {/* ACTION BUTTONS: Hapus Event | Biarkan                            */}
+        {/* ACTION BUTTONS: Hapus Event | Bookmark Event                     */}
         {/* ---------------------------------------------------------------- */}
         <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.actionBtn, styles.hapusBtn]} onPress={handleHapus}>
-            <Ionicons name="trash-outline" size={18} color="#FFF" style={{ marginRight: 6 }} />
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.hapusBtn]}
+            onPress={handleHapus}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={18}
+              color="#FFF"
+              style={{ marginRight: 6 }}
+            />
             <Text style={styles.actionBtnText}>Hapus Event</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionBtn, styles.biarkanBtn]} onPress={handleBiarkan}>
-            <Ionicons name="checkmark-outline" size={18} color="#FFF" style={{ marginRight: 6 }} />
-            <Text style={styles.actionBtnText}>Biarkan</Text>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.bookmarkBtn]}
+            onPress={handleBookmark}
+          >
+            <Ionicons
+              name={isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={18}
+              color="#FFF"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.actionBtnText}>
+              {isBookmarked ? "Sudah Bookmark" : "Bookmark"}
+            </Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
 
       <AdminBottomNav />
@@ -193,12 +231,12 @@ export default function AdminScheduleDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5CC',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    backgroundColor: "#E8F5CC",
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   topHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     paddingHorizontal: 15,
     paddingTop: 15,
   },
@@ -206,11 +244,11 @@ const styles = StyleSheet.create({
   logoContainer: { marginLeft: 10 },
   logoText: {
     fontSize: 18,
-    fontWeight: '900',
-    color: '#A9D08E',
+    fontWeight: "900",
+    color: "#A9D08E",
     letterSpacing: 1,
     lineHeight: 20,
-    textShadowColor: '#2F4454',
+    textShadowColor: "#2F4454",
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 1,
   },
@@ -221,21 +259,21 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2F4454',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#2F4454",
+    textAlign: "center",
     marginBottom: 30,
   },
   eventHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 25,
   },
   eventImagePlaceholder: {
     width: 140,
     height: 120,
     borderRadius: 12,
-    backgroundColor: '#A9D08E',
+    backgroundColor: "#A9D08E",
     marginRight: 20,
   },
   eventImagePoster: {
@@ -247,103 +285,103 @@ const styles = StyleSheet.create({
   eventTitleBox: { flex: 1 },
   eventTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
     lineHeight: 24,
   },
   descriptionCard: {
-    backgroundColor: '#F8FAF8',
+    backgroundColor: "#F8FAF8",
     borderRadius: 10,
     borderWidth: 3,
-    borderColor: '#2F4454',
+    borderColor: "#2F4454",
     paddingVertical: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 25,
   },
   descriptionText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
+    fontWeight: "bold",
+    color: "#000",
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
     marginBottom: 15,
   },
   metricsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 15,
     marginBottom: 15,
   },
   metricCard: {
     flex: 1,
-    backgroundColor: '#A9D08E',
+    backgroundColor: "#A9D08E",
     borderRadius: 10,
     padding: 12,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    alignItems: "center",
+    justifyContent: "flex-end",
     gap: 8,
     minHeight: 160,
   },
   barChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 3,
     height: BAR_CHART_H,
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 5,
   },
   bar: { flex: 1, borderRadius: 2 },
   metricLabel: {
     fontSize: 11,
-    color: '#2F4454',
-    textAlign: 'center',
-    fontWeight: 'bold',
+    color: "#2F4454",
+    textAlign: "center",
+    fontWeight: "bold",
     marginTop: 5,
   },
   metricValue: {
     fontSize: 11,
-    color: '#2F4454',
-    textAlign: 'center',
-    fontWeight: 'bold',
+    color: "#2F4454",
+    textAlign: "center",
+    fontWeight: "bold",
   },
   ringWrapper: {
     width: 80,
     height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
     marginBottom: 5,
   },
   ringBase: {
-    position: 'absolute',
+    position: "absolute",
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 10,
-    borderColor: '#6D8299',
+    borderColor: "#6D8299",
   },
   ringArc: {
-    position: 'absolute',
+    position: "absolute",
     width: 80,
     height: 80,
     borderRadius: 40,
     borderWidth: 10,
-    borderTopColor: '#2F4454',
-    borderRightColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: 'transparent',
-    transform: [{ rotate: '45deg' }],
+    borderTopColor: "#2F4454",
+    borderRightColor: "transparent",
+    borderBottomColor: "transparent",
+    borderLeftColor: "transparent",
+    transform: [{ rotate: "45deg" }],
   },
   ringText: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2F4454',
+    fontWeight: "bold",
+    color: "#2F4454",
   },
   progressCard: {
-    backgroundColor: '#A9D08E',
+    backgroundColor: "#A9D08E",
     borderRadius: 10,
     padding: 15,
     gap: 10,
@@ -351,44 +389,43 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     height: 12,
-    backgroundColor: '#6D8299',
+    backgroundColor: "#6D8299",
     borderRadius: 6,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressBarFill: {
-    width: '60%',
-    height: '100%',
-    backgroundColor: '#2F4454',
+    width: "60%",
+    height: "100%",
+    backgroundColor: "#2F4454",
     borderRadius: 6,
   },
   progressBarLabel: {
     fontSize: 12,
-    color: '#2F4454',
-    textAlign: 'center',
-    fontWeight: 'bold',
+    color: "#2F4454",
+    textAlign: "center",
+    fontWeight: "bold",
   },
-  // ACTION BUTTONS
   actionRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 15,
   },
   actionBtn: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
   },
   hapusBtn: {
-    backgroundColor: '#8B0000', // Dark red
+    backgroundColor: "#8B0000", 
   },
-  biarkanBtn: {
-    backgroundColor: '#2F4454', // Dark teal
+  bookmarkBtn: {
+    backgroundColor: "#2F4454", 
   },
   actionBtnText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });

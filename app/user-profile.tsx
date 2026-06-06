@@ -1,3 +1,5 @@
+// File: app/user-profile.tsx
+
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -19,8 +21,7 @@ import BottomNav from '@/components/bottom-nav';
 
 /**
  * UserProfile Component
- * Renders the user profile screen with account details, general settings,
- * and a fully functional bottom navigation layer mapped via Expo Router.
+ * Renders the user profile screen with account details and general settings.
  */
 export default function UserProfile() {
   const router = useRouter();
@@ -63,15 +64,6 @@ export default function UserProfile() {
       });
   };
 
-  /**
-   * Handles navigation routing for the bottom navigation bar items
-   * @param {string} route - The target route destination path
-   */
-  const handleNavigation = (route: any) => {
-    if (route === '/user-profile') return; 
-    router.push(route as any);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
@@ -80,20 +72,17 @@ export default function UserProfile() {
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.scrollContent}
       >
-        {/* PROFILE PICTURE SECTION */}
+        {/* PROFILE PICTURE SECTION ONLY */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
             <View style={styles.avatarPlaceholder} />
             <TouchableOpacity 
               style={styles.editAvatarButton} 
               activeOpacity={0.8}
-              accessibilityLabel="Edit profile picture"
             >
               <Ionicons name="pencil" size={16} color="#2F4454" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.profileFullname}>{userProfile?.fullname || 'Memuat...'}</Text>
-          <Text style={styles.profileFakultas}>{userProfile?.faculty || 'Memuat...'}</Text>
         </View>
 
         {/* USER ACCOUNT INFORMATION FIELDS */}
@@ -171,7 +160,6 @@ export default function UserProfile() {
         </View>
       </ScrollView>
 
-      {/* BOTTOM NAVIGATION BAR */}
       <BottomNav />
     </SafeAreaView>
   );
@@ -183,39 +171,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F5CC', 
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
-    backgroundColor: '#354A5F', 
-  },
-  headerTitle: {
-    fontSize: 16,
-    color: '#8B9B9B',
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
   scrollContent: {
     paddingBottom: 120, 
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 30, // Adjusted top padding
   },
   profileSection: {
     alignItems: 'center',
     marginBottom: 30,
-  },
-  profileFullname: {
-    marginTop: 12,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2F4454',
-    textAlign: 'center',
-  },
-  profileFakultas: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#556B7D',
-    textAlign: 'center',
   },
   avatarWrapper: {
     position: 'relative',
