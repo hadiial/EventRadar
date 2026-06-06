@@ -1,5 +1,4 @@
 // File: app/admin-schedule-detail.tsx
-// Detail event untuk admin — menampilkan performa event + tombol Hapus/Biarkan
 
 import AdminBottomNav from "@/components/admin-bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
@@ -46,7 +45,7 @@ export default function AdminScheduleDetailScreen() {
   const isBookmarked = eventKey ? bookmarkStore.isBookmarked(eventKey) : false;
 
   // -------------------------------------------------------------------------
-  // Hapus event: ubah status di Firebase → 'rejected' + un-bookmark
+  // Delete event: update status in Firebase → 'rejected' + remove bookmark
   // -------------------------------------------------------------------------
   const handleHapus = () => {
     Alert.alert(
@@ -58,11 +57,11 @@ export default function AdminScheduleDetailScreen() {
           text: "Hapus",
           style: "destructive",
           onPress: async () => {
-            // Un-bookmark event ini (jika ada)
+            // Un-bookmark this event (if any)
             if (eventKey) {
               bookmarkStore.remove(eventKey);
               try {
-                // Update status di Firebase
+                // Update status in Firebase
                 await update(ref(database, `events/${eventKey}`), {
                   status: "rejected",
                 });
@@ -80,7 +79,7 @@ export default function AdminScheduleDetailScreen() {
   };
 
   // -------------------------------------------------------------------------
-  // Bookmark event: simpan ke bookmark admin dan langsung buka halaman bookmark
+  // Bookmark event: save to admin bookmarks and immediately open the bookmark page
   // -------------------------------------------------------------------------
   const handleBookmark = () => {
     if (!eventKey) {
@@ -406,7 +405,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "bold",
   },
-  // ACTION BUTTONS
   actionRow: {
     flexDirection: "row",
     gap: 15,
@@ -420,10 +418,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   hapusBtn: {
-    backgroundColor: "#8B0000", // Dark red
+    backgroundColor: "#8B0000", 
   },
   bookmarkBtn: {
-    backgroundColor: "#2F4454", // Dark teal
+    backgroundColor: "#2F4454", 
   },
   actionBtnText: {
     color: "#FFF",

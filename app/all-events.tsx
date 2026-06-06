@@ -1,5 +1,4 @@
 // File: app/all-events.tsx
-// Halaman "More" — menampilkan 6 mock event di atas dan event dari database (approved) di bawah
 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";

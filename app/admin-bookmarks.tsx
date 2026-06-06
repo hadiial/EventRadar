@@ -97,7 +97,7 @@ export default function AdminBookmarksScreen() {
         {/* TITLE & ICON */}
         <View style={styles.titleContainer}>
           <Ionicons name="bookmark" size={24} color="#2F4454" />
-          <Text style={styles.titleText}>Bookmark</Text>
+          <Text style={styles.titleText}>Bookmarked</Text>
         </View>
 
         {/* SEARCH BAR */}

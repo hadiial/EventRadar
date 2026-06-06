@@ -1,6 +1,4 @@
 // File: app/admin-schedule.tsx
-// Admin jadwal — menampilkan semua event approved dari database dalam grid 2 kolom
-// Event yang di-bookmark admin mendapatkan border highlight (seperti jadwal.tsx user)
 
 import AdminBottomNav from "@/components/admin-bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
@@ -82,7 +80,7 @@ function parseDateParts(dateStr: string): {
   if (!dateStr || dateStr === "-")
     return { day: "??", month: "???", year: "????" };
 
-  // Format numerik: "05 06, 26"
+  // Numeric format: "05 06, 26"
   const numMatch = dateStr.match(/^(\d{1,2})\s+(\d{1,2}),?\s*(\d{2,4})$/);
   if (numMatch) {
     const day = numMatch[1].padStart(2, "0");
@@ -91,7 +89,7 @@ function parseDateParts(dateStr: string): {
     return { day, month: MONTHS_ID[mNum] ?? `Bln ${mNum}`, year: yr };
   }
 
-  // Format teks: "05 Jun, 26"
+  // Text format: "05 Jun, 26"
   const txtMatch = dateStr.match(/^(\d{1,2})\s+([a-zA-Z]{3}),?\s*(\d{2,4})$/);
   if (txtMatch) {
     const day = txtMatch[1].padStart(2, "0");
@@ -100,7 +98,7 @@ function parseDateParts(dateStr: string): {
     return { day, month: ABBR_ID[abbr] ?? txtMatch[2], year: yr };
   }
 
-  // Fallback: gunakan teks apa adanya
+  // Fallback: use the text as-is
   return { day: "??", month: dateStr, year: "" };
 }
 
@@ -115,7 +113,7 @@ export default function AdminScheduleScreen() {
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Subscribe ke bookmarkStore untuk re-render saat bookmark berubah
+  // Subscribe to bookmarkStore to re-render when bookmarks change
   const [, forceUpdate] = useState(0);
   useEffect(() => {
     const unsub = bookmarkStore.subscribe(() => forceUpdate((n) => n + 1));
@@ -139,7 +137,7 @@ export default function AdminScheduleScreen() {
     return () => unsubAuth();
   }, []);
 
-  // Fetch approved events dari Firebase
+  // Fetch approved events from Firebase
   useEffect(() => {
     const eventsRef = ref(database, "events");
     const unsubDb = onValue(eventsRef, (snap) => {
@@ -165,7 +163,7 @@ export default function AdminScheduleScreen() {
           };
         });
       setScheduleItems(items);
-      setCurrentPage(1); // Reset ke halaman pertama saat data berubah
+      setCurrentPage(1); // Reset to the first page when data changes
     });
     return () => unsubDb();
   }, []);
@@ -186,7 +184,7 @@ export default function AdminScheduleScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#A9D08E" />
 
-      {/* HEADER — sama seperti jadwal.tsx user */}
+      {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
@@ -206,7 +204,7 @@ export default function AdminScheduleScreen() {
         {/* SECTION TITLE */}
         <View style={styles.sectionHeader}>
           <Ionicons name="calendar" size={18} color="#2F4454" />
-          <Text style={styles.sectionTitle}>Jadwal Kegiatan</Text>
+          <Text style={styles.sectionTitle}>Jadwal Kegiatan Terdekat</Text>
         </View>
 
         {/* GRID */}
@@ -271,7 +269,7 @@ export default function AdminScheduleScreen() {
                     {item.eventName}
                   </Text>
 
-                  {/* "Ubah setelan event" → popup Hapus/Biarkan */}
+                  {/* Ubah setelan event */}
                   <TouchableOpacity
                     style={styles.editLinkContainer}
                     onPress={(e) => {
@@ -315,7 +313,7 @@ export default function AdminScheduleScreen() {
                           {
                             text: "Biarkan",
                             onPress: () => {
-                              /* tidak ada aksi */
+                              /* no action */
                             },
                           },
                         ],
@@ -471,7 +469,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     minHeight: 130,
   },
-  // Highlight border untuk event yang di-bookmark admin
   gridItemBookmarked: {
     borderWidth: 2,
     borderColor: "#2F4454",

@@ -40,7 +40,7 @@ type EventData = {
 /**
  * AdminCurationScreen
  * 3-step wizard untuk admin mereview, mengecek kelayakan, dan menyetujui/menolak event.
- * Mengambil event pending pertama dari Firebase jika tidak ada eventKey dari params.
+ * Area atas bisa di-scroll secara independen, sementara checklist tetap berada di bawah.
  */
 export default function AdminCurationScreen() {
   const router = useRouter();
@@ -83,13 +83,11 @@ export default function AdminCurationScreen() {
       const raw = snapshot.val() as Record<string, any>;
       const entries = Object.entries(raw);
 
-      // Jika ada eventKey dari params, pakai itu. Kalau tidak, ambil pending pertama.
       let targetEntry: [string, any] | undefined;
 
       if (eventKey) {
         targetEntry = entries.find(([k]) => k === eventKey);
       } else {
-        // Cari event yang status-nya bukan 'approved' dan bukan 'rejected'
         targetEntry = entries.find(([, val]) => {
           const s = val?.status;
           return !s || (s !== 'approved' && s !== 'rejected');
@@ -229,7 +227,7 @@ export default function AdminCurationScreen() {
   );
 
   // ---------------------------------------------------------------------------
-  // Poster area — tampilkan gambar dari URL jika valid, fallback ke kotak hijau
+  // Poster area
   // ---------------------------------------------------------------------------
   const hasPosterUrl = pendingEvent?.posterUrl && pendingEvent.posterUrl.startsWith('http');
 
@@ -307,33 +305,100 @@ export default function AdminCurationScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <Text style={styles.pageTitle}>Kurasi Event</Text>
 
-        <Text style={styles.pageTitle}>Kurasi Event</Text>
-
+      {/* SCROLLABLE TOP AREA (Poster & Deskripsi yang diperbesar) */}
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* EVENT INFO HEADER (Step 1 & 2) */}
         {currentStep < 3 && (
-          <View>
+          <View style={{ flex: 1 }}>
             <View style={styles.eventInfoHeader}>
               <PosterArea />
               <View style={styles.eventInfoText}>
-                <Text style={styles.eventTitleText} numberOfLines={2}>{pendingEvent.title}</Text>
-                <Text style={styles.eventOrgText} numberOfLines={1}>{pendingEvent.organizer}</Text>
-                <Text style={styles.eventCatText} numberOfLines={1}>{pendingEvent.category}</Text>
+                {/* Judul, Penyelenggara, Kategori (Sudah ditambah Icon semua) */}
+                <Text style={styles.eventTitleText} numberOfLines={2}>
+                  <Ionicons name="ticket-outline" size={16} color="#2F4454" /> {pendingEvent.title}
+                </Text>
+                <Text style={styles.eventOrgText} numberOfLines={1}>
+                  <Ionicons name="people-outline" size={13} color="#556B7D" /> {pendingEvent.organizer}
+                </Text>
+                <Text style={styles.eventCatText} numberOfLines={1}>
+                  <Ionicons name="grid-outline" size={12} color="#7A8B99" /> {pendingEvent.category}
+                </Text>
+                
+                {/* Info Lokasi & Kontak */}
+                <Text style={styles.eventMetaText} numberOfLines={1}>
+                  <Ionicons name="location-outline" size={12} color="#2F4454" /> {pendingEvent.location}
+                </Text>
+                <Text style={styles.eventMetaText} numberOfLines={1}>
+                  <Ionicons name="call-outline" size={12} color="#2F4454" /> {pendingEvent.phone}
+                </Text>
+
+                {/* Tanggal Event dipindah ke paling bawah area Info */}
+                <Text style={styles.eventDateText} numberOfLines={1}>
+                  <Ionicons name="calendar-outline" size={12} color="#2F4454" /> {pendingEvent.startDate} - {pendingEvent.endDate}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.descriptionBox}>
-              <ScrollView style={{ maxHeight: 90 }} nestedScrollEnabled>
+            {/* Box deskripsi yang sekarang bisa membesar otomatis dengan flex: 1 */}
+            <View style={[styles.descriptionBox, { flex: 1 }]}>
+              <ScrollView showsVerticalScrollIndicator={true} nestedScrollEnabled>
                 <Text style={styles.descriptionText}>{pendingEvent.description}</Text>
+                
+                {/* Tambahan Link Pendaftaran untuk verifikasi Admin */}
+                <View style={styles.linkContainer}>
+                  <Text style={styles.linkTitle}>Link Registrasi:</Text>
+                  <Text style={styles.linkText} selectable={true}>
+                    {pendingEvent.registrationLink || '-'}
+                  </Text>
+                </View>
               </ScrollView>
             </View>
           </View>
         )}
 
+        {/* STEP 3 INFO AREA (Pie Chart) */}
+        {currentStep === 3 && (
+          <View style={styles.step3Container}>
+            <View style={styles.pieContainer}>
+              <View style={styles.pieBase} />
+              <View style={styles.pieQuadrant} />
+            </View>
+
+            <Text style={styles.pieChartLabel}>
+              Event memenuhi {eligibilityPercentage}%{'\n'}Kelayakan
+            </Text>
+
+            <View style={[styles.parameterBox, { flex: 1, minHeight: 160 }]}>
+              <ScrollView showsVerticalScrollIndicator contentContainerStyle={styles.parameterScroll}>
+                {checkedParams.length > 0 ? (
+                  checkedParams.map((param, index) => (
+                    <Text key={index} style={styles.parameterItemText}>
+                      ✓ {param} telah diverifikasi
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={[styles.parameterItemText, { fontStyle: 'italic', color: '#7A8B99' }]}>
+                    Belum ada parameter yang diverifikasi.
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* FIXED BOTTOM AREA (Checklist selalu di bawah, aman dari bottom nav) */}
+      <View style={styles.fixedBottomArea}>
+        
         {/* STEP 1: KELENGKAPAN */}
         {currentStep === 1 && (
-          <View style={styles.sectionContainer}>
+          <View>
             <Text style={styles.sectionTitle}>Kelengkapan Event</Text>
             <View style={styles.checkboxGrid}>
               <View style={styles.checkboxColumn}>
@@ -367,7 +432,7 @@ export default function AdminCurationScreen() {
 
         {/* STEP 2: KELAYAKAN */}
         {currentStep === 2 && (
-          <View style={styles.sectionContainer}>
+          <View>
             <Text style={styles.sectionTitle}>Kelayakan Event</Text>
             <View style={styles.checkboxGrid}>
               <View style={styles.checkboxColumn}>
@@ -405,47 +470,20 @@ export default function AdminCurationScreen() {
 
         {/* STEP 3: KEPUTUSAN */}
         {currentStep === 3 && (
-          <View style={styles.step3Container}>
-            <View style={styles.pieContainer}>
-              <View style={styles.pieBase} />
-              <View style={styles.pieQuadrant} />
-            </View>
-
-            <Text style={styles.pieChartLabel}>
-              Event memenuhi {eligibilityPercentage}%{'\n'}Kelayakan
-            </Text>
-
-            <View style={styles.parameterBox}>
-              <ScrollView showsVerticalScrollIndicator contentContainerStyle={styles.parameterScroll}>
-                {checkedParams.length > 0 ? (
-                  checkedParams.map((param, index) => (
-                    <Text key={index} style={styles.parameterItemText}>
-                      ✓ {param} telah diverifikasi
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={[styles.parameterItemText, { fontStyle: 'italic', color: '#7A8B99' }]}>
-                    Belum ada parameter yang diverifikasi.
-                  </Text>
-                )}
-              </ScrollView>
-            </View>
-
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={[styles.actionBtn, styles.backBtn]} onPress={() => setCurrentStep(2)}>
-                <Text style={styles.actionBtnText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={handleReject}>
-                <Text style={styles.actionBtnText}>Reject</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.approveBtn]} onPress={handleApprove}>
-                <Text style={styles.actionBtnText}>Approve</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={[styles.actionBtn, styles.backBtn]} onPress={() => setCurrentStep(2)}>
+              <Text style={styles.actionBtnText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={handleReject}>
+              <Text style={styles.actionBtnText}>Reject</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, styles.approveBtn]} onPress={handleApprove}>
+              <Text style={styles.actionBtnText}>Approve</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-      </ScrollView>
+      </View>
 
       <AdminBottomNav />
     </SafeAreaView>
@@ -520,23 +558,24 @@ const styles = StyleSheet.create({
     textShadowRadius: 1,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 25,
     paddingTop: 10,
-    paddingBottom: 110,
+    paddingBottom: 20,
   },
   pageTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#2F4454',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
     marginTop: 10,
   },
   eventInfoHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 5,
   },
   posterPlaceholder: {
     width: 100,
@@ -573,21 +612,54 @@ const styles = StyleSheet.create({
     color: '#7A8B99',
     fontStyle: 'italic',
   },
+  eventMetaText: {
+    fontSize: 12,
+    color: '#2F4454',
+    marginTop: 4,
+  },
+  eventDateText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#2F4454',
+    marginTop: 6,
+  },
   descriptionBox: {
     backgroundColor: '#F8FAF8',
     borderWidth: 2,
     borderColor: '#2F4454',
     borderRadius: 10,
-    minHeight: 80,
     padding: 15,
-    marginBottom: 30,
   },
   descriptionText: {
     fontSize: 14,
     color: '#2F4454',
     lineHeight: 20,
   },
-  sectionContainer: { flex: 1 },
+  linkContainer: {
+    marginTop: 15,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#C4C4C4',
+  },
+  linkTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#2F4454',
+    marginBottom: 4,
+  },
+  linkText: {
+    fontSize: 13,
+    color: '#0066CC',
+    textDecorationLine: 'underline',
+  },
+  fixedBottomArea: {
+    paddingHorizontal: 25,
+    paddingTop: 15,
+    paddingBottom: 110, // Memberikan jarak agar terhindar dari tumpukan Bottom Nav
+    backgroundColor: '#E8F5CC',
+    borderTopWidth: 1,
+    borderTopColor: '#C4C4C4',
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
@@ -597,7 +669,7 @@ const styles = StyleSheet.create({
   checkboxGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   checkboxColumn: { width: '48%' },
   checkboxRow: {
@@ -627,7 +699,7 @@ const styles = StyleSheet.create({
   stepNavigationRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 5,
   },
   backStepButton: {
     backgroundColor: '#7A8B99',
@@ -652,12 +724,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   step3Container: {
+    flex: 1,
     alignItems: 'center',
     marginTop: 10,
   },
   pieContainer: {
-    width: 200,
-    height: 200,
+    width: 180,
+    height: 180,
     position: 'relative',
     marginBottom: 20,
   },
@@ -671,13 +744,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    width: 100,
-    height: 100,
+    width: 90,
+    height: 90,
     backgroundColor: '#6D8299',
     borderTopRightRadius: 100,
   },
   pieChartLabel: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#2F4454',
     textAlign: 'center',
@@ -689,8 +762,6 @@ const styles = StyleSheet.create({
     borderColor: '#2F4454',
     borderRadius: 10,
     width: '100%',
-    height: 160,
-    marginBottom: 30,
     overflow: 'hidden',
   },
   parameterScroll: { padding: 15 },

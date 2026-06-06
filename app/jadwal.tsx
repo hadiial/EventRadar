@@ -1,3 +1,5 @@
+// File: app/jadwal.tsx
+
 import BottomNav from "@/components/bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -5,15 +7,15 @@ import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
-    Image,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth, database } from "../database";
 import { bookmarkStore } from "../store/bookmarkStore";
@@ -46,6 +48,7 @@ function parseDateParts(dateStr: string): {
     11: "November",
     12: "Desember",
   };
+
   const ABBR_ID: Record<string, string> = {
     jan: "Januari",
     feb: "Februari",
@@ -100,6 +103,7 @@ export default function JadwalScreen() {
 
   // Subscribe ke bookmarkStore agar outline biru update real-time
   const [, forceUpdate] = useState(0);
+
   useEffect(() => {
     const unsubscribe = bookmarkStore.subscribe(() =>
       forceUpdate((n) => n + 1),
@@ -136,7 +140,6 @@ export default function JadwalScreen() {
         setScheduleEvents([]);
         return;
       }
-
       const raw = snapshot.val() as Record<string, any>;
       const approvedEvents: ScheduleEvent[] = Object.entries(raw)
         .filter(([, value]) => value?.status === "approved")
@@ -153,11 +156,9 @@ export default function JadwalScreen() {
             posterUrl: value?.["upload poster"] || "",
           };
         });
-
       setScheduleEvents(approvedEvents);
       setCurrentPage(1);
     });
-
     return () => unsubscribeEvents();
   }, []);
 
@@ -165,6 +166,7 @@ export default function JadwalScreen() {
     1,
     Math.ceil(scheduleEvents.length / ITEMS_PER_PAGE),
   );
+
   const pagedEvents = scheduleEvents.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
@@ -196,7 +198,7 @@ export default function JadwalScreen() {
         {/* SECTION TITLE */}
         <View style={styles.sectionHeader}>
           <Ionicons name="calendar" size={18} color="#2F4454" />
-          <Text style={styles.sectionTitle}>Jadwal Kegiatan terdekat</Text>
+          <Text style={styles.sectionTitle}>Jadwal Kegiatan Terdekat</Text>
         </View>
 
         {/* GRID */}
@@ -231,6 +233,7 @@ export default function JadwalScreen() {
                       </View>
                       <Text style={styles.gridItemMonth}>{event.month}</Text>
                     </View>
+
                     <View style={styles.gridItemImageBox}>
                       {hasPoster ? (
                         <Image
@@ -241,6 +244,7 @@ export default function JadwalScreen() {
                       ) : null}
                     </View>
                   </View>
+
                   <Text style={styles.gridItemName} numberOfLines={1}>
                     {event.name}
                   </Text>
@@ -249,8 +253,10 @@ export default function JadwalScreen() {
             })}
           </View>
         )}
+      </ScrollView>
 
-        {/* PAGINATION */}
+      {/* FIXED PAGINATION CONTAINER */}
+      <View style={styles.fixedPaginationContainer}>
         <View style={styles.pagination}>
           <TouchableOpacity
             style={styles.pageArrow}
@@ -302,7 +308,7 @@ export default function JadwalScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
 
       {/* BOTTOM NAVIGATION BAR */}
       <BottomNav />
@@ -350,7 +356,7 @@ const styles = StyleSheet.create({
     color: "#2F4454",
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 20,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -379,9 +385,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     padding: 8,
     justifyContent: "space-between",
-    // Tidak ada border/outline secara default
   },
-  // Outline biru muncul hanya jika event di-bookmark
   gridItemBookmarked: {
     borderWidth: 2,
     borderColor: "#1565C0",
@@ -439,11 +443,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  fixedPaginationContainer: {
+    backgroundColor: "#E8F5CC",
+    paddingTop: 10,
+    paddingBottom: 120, // Diperbesar biar lepas dari Bottom Nav
+  },
   pagination: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
     gap: 6,
   },
   pageArrow: {
