@@ -3,8 +3,8 @@
 import AdminBottomNav from "@/components/admin-bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ref, update } from "firebase/database";
-import React from "react";
+import { onValue, ref, update } from "firebase/database";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -17,26 +17,120 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { database } from "../database";
+import { auth, database } from "../database";
 import { bookmarkStore } from "../store/bookmarkStore";
 
-const BAR_DATA = [40, 65, 50, 80, 60, 95, 75, 110, 85, 100, 90, 120];
-const BAR_MAX = 120;
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 const BAR_CHART_H = 80;
+const MIN_BAR_HEIGHT = 4; // garis pendek untuk nilai 0
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Parse "DD MM, YYYY" atau "DD Mon, YY" → Date object (set ke tengah malam) */
+function parseDateString(dateStr: string): Date | null {
+  if (!dateStr || dateStr === "-") return null;
+
+  const MONTH_MAP: Record<string, number> = {
+    januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+    juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+
+  // Format numerik: "05 06, 2026"
+  const numMatch = dateStr.match(/^(\d{1,2})\s+(\d{1,2}),?\s*(\d{2,4})$/);
+  if (numMatch) {
+    const day = parseInt(numMatch[1], 10);
+    const month = parseInt(numMatch[2], 10) - 1;
+    const yr = numMatch[3].length === 2 ? 2000 + parseInt(numMatch[3], 10) : parseInt(numMatch[3], 10);
+    return new Date(yr, month, day, 23, 59, 59);
+  }
+
+  // Format teks: "05 Jun, 2026"
+  const txtMatch = dateStr.match(/^(\d{1,2})\s+([a-zA-Z]+),?\s*(\d{2,4})$/);
+  if (txtMatch) {
+    const day = parseInt(txtMatch[1], 10);
+    const abbr = txtMatch[2].toLowerCase();
+    const month = MONTH_MAP[abbr] ?? 0;
+    const yr = txtMatch[3].length === 2 ? 2000 + parseInt(txtMatch[3], 10) : parseInt(txtMatch[3], 10);
+    return new Date(yr, month, day, 23, 59, 59);
+  }
+
+  return null;
+}
+
+/**
+ * Hitung persentase sisa waktu event
+ * - Returns nilai antara 0..1 (0 = sudah habis, 1 = baru mulai)
+ */
+function calcTimeRemaining(startDate: string, endDate: string): {
+  pct: number;
+  label: string;
+} {
+  const start = parseDateString(startDate);
+  const end = parseDateString(endDate);
+  const now = new Date();
+
+  if (!end) return { pct: 0, label: "Tanggal akhir tidak tersedia" };
+
+  if (now > end) return { pct: 0, label: "Event telah berakhir" };
+
+  const totalMs = start ? end.getTime() - start.getTime() : null;
+  const remainMs = end.getTime() - now.getTime();
+
+  // pct = sisa / total (jika ada start), else sisa hari dari sekarang ke akhir
+  let pct = 1;
+  if (totalMs && totalMs > 0) {
+    pct = Math.min(1, Math.max(0, remainMs / totalMs));
+  }
+
+  // Format label
+  const days = Math.floor(remainMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((remainMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  if (days > 0) {
+    return { pct, label: `Sisa ${days} hari ${hours} jam lagi` };
+  } else if (hours > 0) {
+    const mins = Math.floor((remainMs % (1000 * 60 * 60)) / (1000 * 60));
+    return { pct, label: `Sisa ${hours} jam ${mins} menit lagi` };
+  } else {
+    const mins = Math.floor(remainMs / (1000 * 60));
+    return { pct, label: `Sisa ${Math.max(0, mins)} menit lagi` };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function AdminScheduleDetailScreen() {
   const router = useRouter();
-  const { name, eventKey, posterUrl, day, month, year, status } =
-    useLocalSearchParams<{
-      id: string;
-      name: string;
-      day: string;
-      month: string;
-      year: string;
-      status?: string;
-      eventKey?: string;
-      posterUrl?: string;
-    }>();
+  const {
+    name,
+    eventKey,
+    posterUrl,
+    day,
+    month,
+    year,
+    status,
+    description: descParam,
+    endDate: endDateParam,
+    startDate: startDateParam,
+  } = useLocalSearchParams<{
+    id: string;
+    name: string;
+    day: string;
+    month: string;
+    year: string;
+    status?: string;
+    eventKey?: string;
+    posterUrl?: string;
+    description?: string;
+    endDate?: string;
+    startDate?: string;
+  }>();
 
   const eventTitle = name || "Judul Event";
   const eventDate = day && month && year ? `${day} ${month} ${year}` : "-";
@@ -45,7 +139,115 @@ export default function AdminScheduleDetailScreen() {
   const isBookmarked = eventKey ? bookmarkStore.isBookmarked(eventKey) : false;
 
   // -------------------------------------------------------------------------
-  // Delete event: update status in Firebase → 'rejected' + remove bookmark
+  // State: hourly views data dari Firebase
+  // -------------------------------------------------------------------------
+  const [hourlyViews, setHourlyViews] = useState<{ hour: string; count: number }[]>([]);
+  const [totalViews, setTotalViews] = useState(0);
+  const [totalClicks, setTotalClicks] = useState(0);
+
+  // -------------------------------------------------------------------------
+  // Subscribe ke data views dan daftar-clicks dari Firebase
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!eventKey) return;
+
+    // views/{eventKey}/{YYYY-MM-DD_HH}: count
+    const viewsRef = ref(database, `views/${eventKey}`);
+    const unsubViews = onValue(viewsRef, (snap) => {
+      if (!snap.exists()) {
+        setHourlyViews([]);
+        setTotalViews(0);
+        return;
+      }
+      const raw = snap.val() as Record<string, number>;
+      // Kumpulkan semua slot jam → { hour: "YYYY-MM-DD_HH", count }
+      const slots = Object.entries(raw).map(([key, count]) => ({
+        hour: key,
+        count: typeof count === "number" ? count : 0,
+      }));
+      // Sort ascending by key (ISO string order works)
+      slots.sort((a, b) => a.hour.localeCompare(b.hour));
+      setHourlyViews(slots);
+      setTotalViews(slots.reduce((s, v) => s + v.count, 0));
+    });
+
+    // clicks/{eventKey}: total klik tombol daftar
+    const clicksRef = ref(database, `clicks/${eventKey}`);
+    const unsubClicks = onValue(clicksRef, (snap) => {
+      setTotalClicks(snap.exists() ? (snap.val() as number) : 0);
+    });
+
+    return () => {
+      unsubViews();
+      unsubClicks();
+    };
+  }, [eventKey]);
+
+  // -------------------------------------------------------------------------
+  // Proses data grafik: selalu 6 batang
+  //  - Jika jam berviews >= 6  → ambil 6 jam terakhir yang ada views
+  //  - Jika jam berviews < 6   → tampilkan yang ada + pad slot kosong ke kanan
+  // -------------------------------------------------------------------------
+  const chartData = useMemo(() => {
+    const CHART_BARS = 6;
+
+    // Jam yang punya views (count > 0), sudah sorted ascending
+    const withViews = hourlyViews.filter((s) => s.count > 0);
+
+    let displaySlots: { label: string; count: number }[];
+
+    if (withViews.length >= CHART_BARS) {
+      // Sudah cukup: ambil 6 jam terakhir yang berviews
+      displaySlots = withViews.slice(-CHART_BARS).map((s) => ({
+        label: s.hour.slice(-2), // "HH"
+        count: s.count,
+      }));
+    } else {
+      // Belum cukup: pakai semua jam berviews + tambahkan slot kosong ke kanan
+      const existing = withViews.map((s) => ({
+        label: s.hour.slice(-2),
+        count: s.count,
+      }));
+      const padCount = CHART_BARS - existing.length;
+      // Hitung label jam berikutnya setelah jam terakhir yang ada
+      const lastHour =
+        withViews.length > 0
+          ? parseInt(withViews[withViews.length - 1].hour.slice(-2), 10)
+          : new Date().getHours();
+      const padding = Array.from({ length: padCount }, (_, i) => ({
+        label: String((lastHour + 1 + i) % 24).padStart(2, "0"),
+        count: 0,
+      }));
+      displaySlots = [...existing, ...padding];
+    }
+
+    const maxCount = Math.max(...displaySlots.map((s) => s.count), 1);
+    return { slots: displaySlots, maxCount };
+  }, [hourlyViews]);
+
+  // -------------------------------------------------------------------------
+  // Valuasi pendaftaran (persentase klik daftar / total views)
+  // -------------------------------------------------------------------------
+  const valuasiPct = totalViews > 0
+    ? Math.min(100, Math.round((totalClicks / totalViews) * 100))
+    : 0;
+
+  // -------------------------------------------------------------------------
+  // Sisa jangka waktu
+  // -------------------------------------------------------------------------
+  const [timeRemaining, setTimeRemaining] = useState(() =>
+    calcTimeRemaining(startDateParam || "", endDateParam || ""),
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeRemaining(calcTimeRemaining(startDateParam || "", endDateParam || ""));
+    }, 60000); // update tiap menit
+    return () => clearInterval(interval);
+  }, [startDateParam, endDateParam]);
+
+  // -------------------------------------------------------------------------
+  // Delete event
   // -------------------------------------------------------------------------
   const handleHapus = () => {
     Alert.alert(
@@ -57,11 +259,9 @@ export default function AdminScheduleDetailScreen() {
           text: "Hapus",
           style: "destructive",
           onPress: async () => {
-            // Un-bookmark this event (if any)
             if (eventKey) {
               bookmarkStore.remove(eventKey);
               try {
-                // Update status in Firebase
                 await update(ref(database, `events/${eventKey}`), {
                   status: "rejected",
                 });
@@ -79,13 +279,10 @@ export default function AdminScheduleDetailScreen() {
   };
 
   // -------------------------------------------------------------------------
-  // Bookmark event: save to admin bookmarks and immediately open the bookmark page
+  // Bookmark event
   // -------------------------------------------------------------------------
   const handleBookmark = () => {
-    if (!eventKey) {
-      return;
-    }
-
+    if (!eventKey) return;
     if (!isBookmarked) {
       bookmarkStore.toggleDbEvent(eventKey, {
         title: eventTitle,
@@ -94,10 +291,12 @@ export default function AdminScheduleDetailScreen() {
         posterUrl: posterUrl || "",
       });
     }
-
     router.replace("/admin-bookmarks");
   };
 
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#E8F5CC" />
@@ -136,58 +335,88 @@ export default function AdminScheduleDetailScreen() {
           </View>
         </View>
 
-        {/* DESCRIPTION CARD */}
+        {/* ================================================================ */}
+        {/* 1. DESCRIPTION CARD                                              */}
+        {/* ================================================================ */}
         <View style={styles.descriptionCard}>
-          <Text style={styles.descriptionText}>Deskripsi event</Text>
+          {descParam && descParam.trim().length > 0 ? (
+            <Text style={styles.descriptionContent}>{descParam}</Text>
+          ) : (
+            <Text style={styles.descriptionPlaceholder}>
+              Deskripsi event tidak tersedia.
+            </Text>
+          )}
         </View>
 
         {/* PERFORMANCE SECTION */}
         <Text style={styles.sectionTitle}>Peforma Event</Text>
 
         <View style={styles.metricsRow}>
-          {/* BAR CHART */}
+          {/* ============================================================== */}
+          {/* 2. BAR CHART – HOURLY VIEWS                                     */}
+          {/* ============================================================== */}
           <View style={styles.metricCard}>
             <View style={styles.barChart}>
-              {BAR_DATA.map((val, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.bar,
-                    {
-                      height: (val / BAR_MAX) * BAR_CHART_H,
-                      backgroundColor: i % 2 === 0 ? "#6D8299" : "#2F4454",
-                    },
-                  ]}
-                />
-              ))}
+              {chartData.slots.map((slot, i) => {
+                const heightRatio = slot.count / chartData.maxCount;
+                const barH =
+                  slot.count === 0
+                    ? MIN_BAR_HEIGHT
+                    : Math.max(MIN_BAR_HEIGHT, heightRatio * BAR_CHART_H);
+                return (
+                  <View key={i} style={styles.barWrapper}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          height: barH,
+                          backgroundColor:
+                            slot.count === 0
+                              ? "#8FA7BA" // warna lebih pucat untuk nol
+                              : i % 2 === 0
+                              ? "#6D8299"
+                              : "#2F4454",
+                        },
+                      ]}
+                    />
+                    <Text style={styles.barLabel}>{slot.label}</Text>
+                  </View>
+                );
+              })}
             </View>
             <Text style={styles.metricLabel}>Perkembangan Views</Text>
-            <Text style={styles.metricValue}>1200 Total Views</Text>
+            <Text style={styles.metricValue}>{totalViews} Total Views</Text>
           </View>
 
-          {/* RING CHART */}
+          {/* ============================================================== */}
+          {/* 3. RING CHART – VALUASI PENDAFTARAN                             */}
+          {/* ============================================================== */}
           <View style={styles.metricCard}>
-            <View style={styles.ringWrapper}>
-              <View style={styles.ringBase} />
-              <View style={styles.ringArc} />
-              <Text style={styles.ringText}>25%</Text>
-            </View>
+            <ValuasiRing pct={valuasiPct} />
             <Text style={styles.metricLabel}>
               Valuasi Pendaftaran{"\n"}Setelah klik
             </Text>
           </View>
         </View>
 
-        {/* PROGRESS BAR */}
+        {/* ================================================================ */}
+        {/* 4. SISA JANGKA WAKTU – PROGRESS BAR                              */}
+        {/* ================================================================ */}
         <View style={styles.progressCard}>
           <View style={styles.progressBarTrack}>
-            <View style={styles.progressBarFill} />
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${Math.round(timeRemaining.pct * 100)}%` },
+              ]}
+            />
           </View>
-          <Text style={styles.progressBarLabel}>Sisa Jangka Waktu Event</Text>
+          <Text style={styles.progressBarLabel}>{timeRemaining.label}</Text>
+          <Text style={styles.progressBarSubLabel}>Sisa Jangka Waktu Event</Text>
         </View>
 
         {/* ---------------------------------------------------------------- */}
-        {/* ACTION BUTTONS: Hapus Event | Bookmark Event                     */}
+        {/* ACTION BUTTONS                                                    */}
         {/* ---------------------------------------------------------------- */}
         <View style={styles.actionRow}>
           <TouchableOpacity
@@ -222,6 +451,41 @@ export default function AdminScheduleDetailScreen() {
 
       <AdminBottomNav />
     </SafeAreaView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-component: Valuasi Ring Chart
+// ---------------------------------------------------------------------------
+function ValuasiRing({ pct }: { pct: number }) {
+  // Gunakan pendekatan arc sederhana seperti semula, tetapi dengan rotasi
+  // yang dihitung dari persentase.
+  // 0% → tidak ada arc, 100% → arc penuh (360 deg ≈ semua border berwarna)
+  // Kita bagi 4 kuadran: setiap 25% mengisi 1 border.
+  const fill = pct / 100;
+
+  // Warna arc berdasar nilai
+  const arcColor = pct >= 50 ? "#2F4454" : pct >= 25 ? "#4A7A60" : "#8B0000";
+
+  return (
+    <View style={styles.ringWrapper}>
+      {/* Track */}
+      <View style={styles.ringBase} />
+      {/* Arc overlay – rotasi disesuaikan persentase */}
+      <View
+        style={[
+          styles.ringArc,
+          {
+            borderTopColor: fill > 0 ? arcColor : "transparent",
+            borderRightColor: fill > 0.25 ? arcColor : "transparent",
+            borderBottomColor: fill > 0.5 ? arcColor : "transparent",
+            borderLeftColor: fill > 0.75 ? arcColor : "transparent",
+            transform: [{ rotate: `${fill * 360 - 90}deg` }],
+          },
+        ]}
+      />
+      <Text style={styles.ringText}>{pct}%</Text>
+    </View>
   );
 }
 
@@ -289,20 +553,27 @@ const styles = StyleSheet.create({
     color: "#2F4454",
     lineHeight: 24,
   },
+  // Description card
   descriptionCard: {
     backgroundColor: "#F8FAF8",
     borderRadius: 10,
     borderWidth: 3,
     borderColor: "#2F4454",
-    paddingVertical: 50,
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 18,
     marginBottom: 25,
+    minHeight: 80,
+    justifyContent: "center",
   },
-  descriptionText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#000",
+  descriptionContent: {
+    fontSize: 14,
+    color: "#2F4454",
+    lineHeight: 22,
+  },
+  descriptionPlaceholder: {
+    fontSize: 14,
+    color: "#9AAA99",
+    fontStyle: "italic",
+    textAlign: "center",
   },
   sectionTitle: {
     fontSize: 16,
@@ -322,24 +593,41 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 8,
+    gap: 6,
     minHeight: 160,
   },
+  // Bar chart
   barChart: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 3,
-    height: BAR_CHART_H,
+    height: BAR_CHART_H + 16, // extra for labels
     width: "100%",
     paddingHorizontal: 5,
   },
-  bar: { flex: 1, borderRadius: 2 },
+  barWrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: BAR_CHART_H + 16,
+  },
+  bar: {
+    width: "100%",
+    borderRadius: 2,
+    minHeight: MIN_BAR_HEIGHT,
+  },
+  barLabel: {
+    fontSize: 7,
+    color: "#2F4454",
+    marginTop: 2,
+    textAlign: "center",
+  },
   metricLabel: {
     fontSize: 11,
     color: "#2F4454",
     textAlign: "center",
     fontWeight: "bold",
-    marginTop: 5,
+    marginTop: 2,
   },
   metricValue: {
     fontSize: 11,
@@ -347,6 +635,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "bold",
   },
+  // Ring chart
   ringWrapper: {
     width: 80,
     height: 80,
@@ -373,18 +662,18 @@ const styles = StyleSheet.create({
     borderRightColor: "transparent",
     borderBottomColor: "transparent",
     borderLeftColor: "transparent",
-    transform: [{ rotate: "45deg" }],
   },
   ringText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: "#2F4454",
   },
+  // Progress bar
   progressCard: {
     backgroundColor: "#A9D08E",
     borderRadius: 10,
     padding: 15,
-    gap: 10,
+    gap: 8,
     marginBottom: 30,
   },
   progressBarTrack: {
@@ -394,7 +683,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressBarFill: {
-    width: "60%",
     height: "100%",
     backgroundColor: "#2F4454",
     borderRadius: 6,
@@ -405,6 +693,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "bold",
   },
+  progressBarSubLabel: {
+    fontSize: 11,
+    color: "#2F4454",
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  // Action buttons
   actionRow: {
     flexDirection: "row",
     gap: 15,
@@ -418,10 +713,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   hapusBtn: {
-    backgroundColor: "#8B0000", 
+    backgroundColor: "#8B0000",
   },
   bookmarkBtn: {
-    backgroundColor: "#2F4454", 
+    backgroundColor: "#2F4454",
   },
   actionBtnText: {
     color: "#FFF",

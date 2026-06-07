@@ -32,6 +32,9 @@ interface ScheduleItem {
   eventName: string;
   posterUrl: string;
   status: string;
+  description: string;
+  endDate: string; // periode akhir
+  startDate: string; // periode mulai (raw)
 }
 
 const ITEMS_PER_PAGE = 6; // 3 rows × 2 columns
@@ -160,6 +163,9 @@ export default function AdminScheduleScreen() {
             eventName: val["Nama Event"] || "Event",
             posterUrl: val["upload poster"] || "",
             status: val.status || "approved",
+            description: val["Deskripsi event"] || "",
+            endDate: val["periode akhir"] || "",
+            startDate: val["Periode mulai"] || "",
           };
         });
       setScheduleItems(items);
@@ -237,6 +243,9 @@ export default function AdminScheduleScreen() {
                         status: item.status,
                         eventKey: item.key,
                         posterUrl: item.posterUrl,
+                        description: item.description,
+                        endDate: item.endDate,
+                        startDate: item.startDate,
                       },
                     })
                   }

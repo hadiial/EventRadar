@@ -3,8 +3,8 @@
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import { onValue, ref } from "firebase/database";
-import React, { useEffect, useState } from "react";
+import { get, onValue, ref, runTransaction } from "firebase/database";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -50,6 +50,7 @@ export default function EventDetailScreen() {
   const [userProfile, setUserProfile] = useState<{
     fullname: string;
     fakultas: string;
+    role?: string;
   } | null>(null);
   const [dbEvent, setDbEvent] = useState<DbEventData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,6 +83,7 @@ export default function EventDetailScreen() {
             setUserProfile({
               fullname: data.fullname || data.username || "User",
               fakultas: data.fakultas || "",
+              role: data.role || "user",
             });
           }
         });
@@ -120,6 +122,43 @@ export default function EventDetailScreen() {
     return () => unsubDb();
   }, [id, isDbEvent]);
 
+  // -------------------------------------------------------------------------
+  // Track view: catat 1 view per jam ke Firebase
+  // Hanya untuk role 'user' (case-insensitive). Jika tidak ada field role
+  // di database, anggap sebagai user biasa dan tetap catat.
+  // Gunakan useRef agar hanya dicatat SEKALI per kunjungan halaman.
+  // -------------------------------------------------------------------------
+  const viewTracked = useRef(false);
+
+  useEffect(() => {
+    if (!isDbEvent || !id) return;
+    // Tunggu auth state selesai (user login)
+    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) return;
+      if (viewTracked.current) return; // sudah dicatat, skip
+
+      try {
+        // Fetch role user langsung (one-time get)
+        const snap = await get(ref(database, `User/${firebaseUser.uid}/role`));
+        const role: string = (snap.val() ?? "user").toString().toLowerCase();
+
+        // Jangan catat view untuk admin atau kurator
+        if (role === "admin" || role === "kurator") return;
+
+        // Catat view pada slot jam ini
+        const now = new Date();
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const slotKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}`;
+        const viewRef = ref(database, `views/${id}/${slotKey}`);
+        await runTransaction(viewRef, (current) => (current ?? 0) + 1);
+        viewTracked.current = true;
+      } catch (err) {
+        console.warn("[ViewTrack] Error:", err);
+      }
+    });
+    return () => unsubAuth();
+  }, [id, isDbEvent]);
+
   const handleBookmark = () => {
     if (isDbEvent && dbEvent) {
       // DB event — simpan data lengkap agar muncul di bookmark list
@@ -147,6 +186,11 @@ export default function EventDetailScreen() {
     try {
       const supported = await Linking.canOpenURL(link);
       if (supported) {
+        // Catat klik daftar ke Firebase
+        if (isDbEvent && id) {
+          const clickRef = ref(database, `clicks/${id}`);
+          runTransaction(clickRef, (current) => (current ?? 0) + 1).catch(() => {});
+        }
         await Linking.openURL(link);
       } else {
         Alert.alert(
