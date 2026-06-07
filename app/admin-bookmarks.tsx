@@ -84,9 +84,6 @@ export default function AdminBookmarksScreen() {
           <Text style={styles.userName}>
             {userProfile?.fullname || "Memuat..."}
           </Text>
-          <Text style={styles.userMajor}>
-            {userProfile?.fakultas || "Memuat..."}
-          </Text>
         </View>
       </View>
 

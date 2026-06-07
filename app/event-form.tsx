@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import BottomNav from '@/components/bottom-nav';
 import { auth, database } from '../database';
-import { ref, get, child, set } from 'firebase/database';
+import { ref, push } from 'firebase/database';
 
 /**
  * EventForm Component
@@ -62,17 +62,8 @@ export default function EventFormScreen() {
   }, []);
 
   /**
-   * Calculate event_id_(n) based on the number of data already stored in /events
-   */
-  const getNextEventKey = async (): Promise<string> => {
-    const dbRef = ref(database);
-    const snapshot = await get(child(dbRef, 'events'));
-    const existingCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
-    return `event_id_${existingCount + 1}`;
-  };
-
-  /**
-   * Send event data to Firebase Realtime Database
+   * Send event data to Firebase Realtime Database.
+   * Uses push() to always generate a unique key and avoid overwriting existing events.
    */
   const submitToFirebase = async () => {
     // Validate year format (must be 4 digits)
@@ -92,8 +83,7 @@ export default function EventFormScreen() {
     
     setIsLoading(true);
     try {
-      const eventKey = await getNextEventKey();
-      const eventsRef = ref(database, `events/${eventKey}`);
+      const eventsRef = ref(database, 'events');
       const eventData = {
         'Nama Event': title.trim(),
         'Nama penyelenggara': createdBy.trim(),
@@ -110,7 +100,7 @@ export default function EventFormScreen() {
         'userId': auth.currentUser?.uid,
       };
 
-      await set(eventsRef, eventData);
+      await push(eventsRef, eventData);
 
       Alert.alert('Berhasil!', 'Event berhasil dikirim dan sedang menunggu kurasi dari Admin.', [
         { text: 'OK', onPress: () => router.replace('/') },
