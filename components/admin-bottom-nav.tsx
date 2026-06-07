@@ -1,6 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
-import { usePathname, useRouter } from "expo-router";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import React from 'react';
+import { View, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, usePathname } from 'expo-router';
 
 /**
  * AdminBottomNav Component
@@ -9,75 +10,86 @@ import { StyleSheet, TouchableOpacity, View } from "react-native";
  */
 export default function AdminBottomNav() {
   const router = useRouter();
-  const pathname = usePathname(); // Retrieves the current active route
+  const pathname = usePathname();
 
   /**
-   * Handles navigation to prevent pushing the same route multiple times
-   * @param {any} route - The target screen route
+   * handleNavigation
+   * Manages routing between admin screens.
+   * Includes a temporary lock mechanism to prevent errors when navigating to unfinished pages.
+   * * @param {string} route - The target screen route path
    */
-  const handleNavigation = (route: any) => {
+  const handleNavigation = (route: string) => {
+    // 1. Prevent pushing the same route multiple times if we are already there
     if (pathname === route) return;
+
+    // --- TEMPORARY LOCK MECHANISM ---
+    // ADDED: '/admin-profile' is now unlocked!
+    const readyPages = ['/admin-dashboard', '/admin-bookmarks', '/admin-schedule', '/admin-profile', '/admin-event-request'];
+
+    // If the requested route is NOT in the readyPages array, show a 'Coming Soon' alert.
+    if (!readyPages.includes(route)) {
+      Alert.alert(
+        '🚧 Coming Soon!', 
+        'Please be patient. This page is currently under development and will be available in the next update.'
+      );
+      return; // Stop execution to prevent routing error
+    }
+    // ----------------------------------------
+
+    // 2. Navigate to the allowed route
     router.push(route as any);
   };
 
   return (
     <View style={styles.bottomNavContainer}>
       <View style={styles.bottomNav}>
-        {/* SCHEDULE / CALENDAR BUTTON */}
-        <TouchableOpacity
-          style={[
-            styles.navIcon,
-            pathname === "/jadwal" && styles.activeNavIcon,
-          ]}
-          onPress={() => handleNavigation("/jadwal")}
+        
+        {/* SCHEDULE BUTTON */}
+        <TouchableOpacity 
+          style={[styles.navIcon, pathname === '/admin-schedule' && styles.activeNavIcon]} 
+          onPress={() => handleNavigation('/admin-schedule')}
           accessibilityLabel="Go to schedule"
         >
           <Ionicons name="calendar" size={28} color="#FFF" />
         </TouchableOpacity>
-
-        {/* BOOKMARKS / REQUEST LIST BUTTON */}
-        <TouchableOpacity
-          style={[
-            styles.navIcon,
-            pathname === "/bookmarks-page" && styles.activeNavIcon,
-          ]}
-          onPress={() => handleNavigation("/bookmarks-page")}
-          accessibilityLabel="Go to bookmarks"
+        
+        {/* BOOKMARKS / EVENT REQUEST BUTTON */}
+        <TouchableOpacity 
+          style={[styles.navIcon, pathname === '/admin-bookmarks' && styles.activeNavIcon]} 
+          onPress={() => handleNavigation('/admin-bookmarks')}
+          accessibilityLabel="Go to event requests"
         >
           <Ionicons name="bookmark" size={28} color="#FFF" />
         </TouchableOpacity>
-
-        {/* CENTER FLOATING HOME BUTTON */}
+        
+        {/* CENTER FLOATING HOME DASHBOARD BUTTON */}
         <View style={styles.homeButtonWrapper}>
-          <TouchableOpacity
-            style={styles.homeButton}
-            onPress={() => handleNavigation("/admin")}
-            accessibilityLabel="Go to home"
+          <TouchableOpacity 
+            style={styles.homeButton} 
+            onPress={() => handleNavigation('/admin-dashboard')}
+            accessibilityLabel="Go to admin dashboard"
           >
             <Ionicons name="home" size={36} color="#2F4454" />
           </TouchableOpacity>
         </View>
 
-        {/* CREATE EVENT / CURATION BUTTON */}
+        {/* CREATE EVENT / EVENT REQUEST BUTTON */}
         <TouchableOpacity
           style={[
             styles.navIcon,
-            pathname === "/event-form" && styles.activeNavIcon,
+            pathname === "/admin-event-request" && styles.activeNavIcon,
           ]}
-          onPress={() => handleNavigation("/event-form")}
-          accessibilityLabel="Go to create event"
+          onPress={() => handleNavigation("/admin-event-request")}
+          accessibilityLabel="Go to event requests"
         >
-          <Ionicons name="add-circle-outline" size={32} color="#FFF" />
+          <Ionicons name="document-text-outline" size={32} color="#FFF" />
         </TouchableOpacity>
 
         {/* USER PROFILE BUTTON */}
-        <TouchableOpacity
-          style={[
-            styles.navIcon,
-            pathname === "/user-profile" && styles.activeNavIcon,
-          ]}
-          onPress={() => handleNavigation("/user-profile")}
-          accessibilityLabel="Go to profile"
+        <TouchableOpacity 
+          style={[styles.navIcon, pathname === '/admin-profile' && styles.activeNavIcon]} 
+          onPress={() => handleNavigation('/admin-profile')}
+          accessibilityLabel="Go to admin profile"
         >
           <Ionicons name="person" size={28} color="#FFF" />
         </TouchableOpacity>
@@ -105,19 +117,19 @@ const styles = StyleSheet.create({
   },
   navIcon: {
     padding: 10,
-    opacity: 0.5, // Default is dimmed for inactive states
+    opacity: 0.5, // Default state is dimmed
   },
   activeNavIcon: {
-    opacity: 1.0, // Fully visible when active
+    opacity: 1.0, // Fully visible when the route matches
   },
   homeButtonWrapper: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "#E8F5CC", // Matches the main app background color
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: -30,
+    backgroundColor: '#E8F5CC', // Matches the main app background
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -30, // Pushes the button upwards to create the floating effect
   },
   homeButton: {
     width: 60,

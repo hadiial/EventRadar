@@ -1,12 +1,13 @@
-// File: app/jadwal.tsx
+// File: app/admin-schedule.tsx
 
-import BottomNav from "@/components/bottom-nav";
+import AdminBottomNav from "@/components/admin-bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import { onValue, ref } from "firebase/database";
+import { onValue, ref, update } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Image,
   Platform,
   SafeAreaView,
@@ -20,15 +21,27 @@ import {
 import { auth, database } from "../database";
 import { bookmarkStore } from "../store/bookmarkStore";
 
-interface ScheduleEvent {
-  key: string;
-  day: string;
-  month: string;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface ScheduleItem {
+  key: string; // Firebase event key (e.g., 'event_id_1')
+  dateNum: string; // Day number from 'Periode mulai'
   year: string;
-  name: string;
-  posterUrl?: string;
+  month: string;
+  eventName: string;
+  posterUrl: string;
+  status: string;
+  description: string;
+  endDate: string; // periode akhir
+  startDate: string; // periode mulai (raw)
 }
 
+const ITEMS_PER_PAGE = 8; 
+
+// ---------------------------------------------------------------------------
+// Helper: parse "DD MM, YY" or "DD Mon, YY" -> { day, month, year }
+// ---------------------------------------------------------------------------
 function parseDateParts(dateStr: string): {
   day: string;
   month: string;
@@ -68,110 +81,115 @@ function parseDateParts(dateStr: string): {
     dec: "Desember",
   };
 
-  if (!dateStr || dateStr.trim() === "") {
-    return { day: "??", month: "Unknown", year: "????" };
-  }
+  if (!dateStr || dateStr === "-")
+    return { day: "??", month: "???", year: "????" };
 
+  // Numeric format: "05 06, 26"
   const numMatch = dateStr.match(/^(\d{1,2})\s+(\d{1,2}),?\s*(\d{2,4})$/);
   if (numMatch) {
     const day = numMatch[1].padStart(2, "0");
-    const monthNum = parseInt(numMatch[2], 10);
-    const year = numMatch[3].length === 2 ? `20${numMatch[3]}` : numMatch[3];
-    return { day, month: MONTHS_ID[monthNum] ?? `Bln ${monthNum}`, year };
+    const mNum = parseInt(numMatch[2], 10);
+    const yr = numMatch[3].length === 2 ? `20${numMatch[3]}` : numMatch[3];
+    return { day, month: MONTHS_ID[mNum] ?? `Bln ${mNum}`, year: yr };
   }
 
+  // Text format: "05 Jun, 26"
   const txtMatch = dateStr.match(/^(\d{1,2})\s+([a-zA-Z]{3}),?\s*(\d{2,4})$/);
   if (txtMatch) {
     const day = txtMatch[1].padStart(2, "0");
     const abbr = txtMatch[2].toLowerCase();
-    const year = txtMatch[3].length === 2 ? `20${txtMatch[3]}` : txtMatch[3];
-    return { day, month: ABBR_ID[abbr] ?? txtMatch[2], year };
+    const yr = txtMatch[3].length === 2 ? `20${txtMatch[3]}` : txtMatch[3];
+    return { day, month: ABBR_ID[abbr] ?? txtMatch[2], year: yr };
   }
 
+  // Fallback: use the text as-is
   return { day: "??", month: dateStr, year: "" };
 }
 
-const ITEMS_PER_PAGE = 8;
-
-export default function JadwalScreen() {
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+export default function AdminScheduleScreen() {
   const router = useRouter();
+  const [adminName, setAdminName] = useState("Admin");
+  const [adminFakultas, setAdminFakultas] = useState("");
+
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [userProfile, setUserProfile] = useState<{
-    fullname: string;
-    fakultas: string;
-  } | null>(null);
 
-  // Subscribe ke bookmarkStore agar outline biru update real-time
+  // Subscribe to bookmarkStore to re-render when bookmarks change
   const [, forceUpdate] = useState(0);
-
   useEffect(() => {
-    const unsubscribe = bookmarkStore.subscribe(() =>
-      forceUpdate((n) => n + 1),
-    );
-    return unsubscribe;
+    const unsub = bookmarkStore.subscribe(() => forceUpdate((n) => n + 1));
+    return unsub;
   }, []);
 
-  // Fetch user profile dari Firebase
+  // Fetch admin profile
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         const userRef = ref(database, "User/" + user.uid);
-        const unsubscribeDb = onValue(userRef, (snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            setUserProfile({
-              fullname: data.fullname || data.username || "User",
-              fakultas: data.fakultas || "",
-            });
-          }
+        const unsubDb = onValue(userRef, (snap) => {
+          const data = snap.val();
+          if (data?.fullname) setAdminName(data.fullname);
+          else if (data?.username) setAdminName(data.username);
+
+          if (data?.fakultas) setAdminFakultas(data.fakultas);
         });
-        return () => unsubscribeDb();
+        return () => unsubDb();
       }
     });
-    return () => unsubscribeAuth();
+    return () => unsubAuth();
   }, []);
 
-  const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
-
+  // Fetch approved events from Firebase
   useEffect(() => {
     const eventsRef = ref(database, "events");
-    const unsubscribeEvents = onValue(eventsRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        setScheduleEvents([]);
+    const unsubDb = onValue(eventsRef, (snap) => {
+      if (!snap.exists()) {
+        setScheduleItems([]);
         return;
       }
-      const raw = snapshot.val() as Record<string, any>;
-      const approvedEvents: ScheduleEvent[] = Object.entries(raw)
-        .filter(([, value]) => value?.status === "approved")
-        .map(([key, value]) => {
+      const raw = snap.val() as Record<string, any>;
+      const items: ScheduleItem[] = Object.entries(raw)
+        .filter(([, val]) => val?.status === "approved")
+        .map(([key, val]) => {
           const { day, month, year } = parseDateParts(
-            value?.["Periode mulai"] || "",
+            val["Periode mulai"] || "",
           );
           return {
             key,
-            day,
-            month,
+            dateNum: day,
             year,
-            name: value?.["Nama Event"] || "Event",
-            posterUrl: value?.["upload poster"] || "",
+            month,
+            eventName: val["Nama Event"] || "Event",
+            posterUrl: val["upload poster"] || "",
+            status: val.status || "approved",
+            description: val["Deskripsi event"] || "",
+            endDate: val["periode akhir"] || "",
+            startDate: val["Periode mulai"] || "",
           };
         });
-      setScheduleEvents(approvedEvents);
-      setCurrentPage(1);
+
+      setScheduleItems(items);
+      setCurrentPage(1); // Reset to the first page when data changes
     });
-    return () => unsubscribeEvents();
+    return () => unsubDb();
   }, []);
 
   const totalPages = Math.max(
     1,
-    Math.ceil(scheduleEvents.length / ITEMS_PER_PAGE),
+    Math.ceil(scheduleItems.length / ITEMS_PER_PAGE),
   );
 
-  const pagedEvents = scheduleEvents.slice(
+  const pagedItems = scheduleItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#A9D08E" />
@@ -181,12 +199,7 @@ export default function JadwalScreen() {
         <View style={styles.userInfo}>
           <View style={styles.avatarPlaceholder} />
           <View>
-            <Text style={styles.userName}>
-              {userProfile?.fullname || "Memuat..."}
-            </Text>
-            <Text style={styles.userMajor}>
-              {userProfile?.fakultas || "Memuat..."}
-            </Text>
+            <Text style={styles.userName}>{adminName}</Text>
           </View>
         </View>
       </View>
@@ -202,42 +215,58 @@ export default function JadwalScreen() {
         </View>
 
         {/* GRID */}
-        {scheduleEvents.length === 0 ? (
+        {scheduleItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={48} color="#A9D08E" />
             <Text style={styles.emptyText}>
-              Belum ada jadwal event yang disetujui.
+              Belum ada event terjadwal yang disetujui.
             </Text>
           </View>
         ) : (
           <View style={styles.gridContainer}>
-            {pagedEvents.map((event) => {
-              const isBookmarked = bookmarkStore.isBookmarked(event.key);
-              const hasPoster =
-                !!event.posterUrl && event.posterUrl.startsWith("http");
-
+            {pagedItems.map((item) => {
+              const isBookmarked = bookmarkStore.isBookmarked(item.key);
               return (
                 <TouchableOpacity
-                  key={event.key}
+                  key={item.key}
                   style={[
                     styles.gridItem,
                     isBookmarked && styles.gridItemBookmarked,
                   ]}
-                  onPress={() => router.push(`/events/${event.key}`)}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/admin-schedule-detail" as any,
+                      params: {
+                        id: item.key,
+                        name: item.eventName,
+                        day: item.dateNum,
+                        month: item.month,
+                        year: item.year,
+                        status: item.status,
+                        eventKey: item.key,
+                        posterUrl: item.posterUrl,
+                        description: item.description,
+                        endDate: item.endDate,
+                        startDate: item.startDate,
+                      },
+                    })
+                  }
                 >
+                  {/* Top: tanggal + thumbnail box */}
                   <View style={styles.gridItemTop}>
                     <View>
                       <View style={styles.gridItemDayRow}>
-                        <Text style={styles.gridItemDay}>{event.day}</Text>
-                        <Text style={styles.gridItemYear}>{event.year}</Text>
+                        <Text style={styles.gridItemDay}>{item.dateNum}</Text>
+                        <Text style={styles.gridItemYear}>{item.year}</Text>
                       </View>
-                      <Text style={styles.gridItemMonth}>{event.month}</Text>
+                      <Text style={styles.gridItemMonth}>{item.month}</Text>
                     </View>
 
                     <View style={styles.gridItemImageBox}>
-                      {hasPoster ? (
+                      {item.posterUrl && item.posterUrl.startsWith("http") ? (
                         <Image
-                          source={{ uri: event.posterUrl! }}
+                          source={{ uri: item.posterUrl }}
                           style={styles.gridItemImage}
                           resizeMode="cover"
                         />
@@ -245,9 +274,64 @@ export default function JadwalScreen() {
                     </View>
                   </View>
 
+                  {/* Event name */}
                   <Text style={styles.gridItemName} numberOfLines={1}>
-                    {event.name}
+                    {item.eventName}
                   </Text>
+
+                  {/* Ubah setelan event */}
+                  <TouchableOpacity
+                    style={styles.editLinkContainer}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      Alert.alert(
+                        "Ubah Setelan Event",
+                        `Event: ${item.eventName}\n\nApa yang ingin Anda lakukan?`,
+                        [
+                          { text: "Batal", style: "cancel" },
+                          {
+                            text: "Hapus Event",
+                            style: "destructive",
+                            onPress: () => {
+                              Alert.alert(
+                                "Konfirmasi Hapus",
+                                `Apakah Anda yakin ingin menghapus "${item.eventName}"? Event akan ditandai sebagai ditolak.`,
+                                [
+                                  { text: "Batal", style: "cancel" },
+                                  {
+                                    text: "Hapus",
+                                    style: "destructive",
+                                    onPress: async () => {
+                                      try {
+                                        await update(
+                                          ref(database, `events/${item.key}`),
+                                          { status: "rejected" },
+                                        );
+                                        bookmarkStore.remove(item.key);
+                                      } catch (err) {
+                                        console.error(
+                                          "Error removing event:",
+                                          err,
+                                        );
+                                      }
+                                    },
+                                  },
+                                ],
+                              );
+                            },
+                          },
+                          {
+                            text: "Biarkan",
+                            onPress: () => {
+                              /* no action */
+                            },
+                          },
+                        ],
+                      );
+                    }}
+                  >
+                    <Text style={styles.editLinkText}>Ubah setelan event</Text>
+                  </TouchableOpacity>
                 </TouchableOpacity>
               );
             })}
@@ -310,12 +394,14 @@ export default function JadwalScreen() {
         </View>
       </View>
 
-      {/* BOTTOM NAVIGATION BAR */}
-      <BottomNav />
+      <AdminBottomNav />
     </SafeAreaView>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -329,11 +415,6 @@ const styles = StyleSheet.create({
     paddingBottom: 25,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
-  },
-  headerTitle: {
-    fontSize: 13,
-    color: "#2F4454",
-    marginBottom: 12,
   },
   userInfo: {
     flexDirection: "row",
@@ -349,10 +430,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2F4454",
-  },
-  userMajor: {
-    fontSize: 12,
     color: "#2F4454",
   },
   scrollContent: {
@@ -371,6 +448,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#2F4454",
   },
+  emptyState: {
+    alignItems: "center",
+    marginTop: 60,
+    gap: 12,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#7A8B99",
+    textAlign: "center",
+    fontStyle: "italic",
+  },
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -379,16 +468,16 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     width: "48%",
-    height: 110,
+    minHeight: 115, 
     backgroundColor: "#A9D08E",
     borderRadius: 10,
-    marginBottom: 10,
     padding: 8,
+    marginBottom: 10,
     justifyContent: "space-between",
   },
   gridItemBookmarked: {
     borderWidth: 2,
-    borderColor: "#1565C0",
+    borderColor: "#2F4454",
   },
   gridItemTop: {
     flexDirection: "row",
@@ -401,7 +490,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   gridItemDay: {
-    fontSize: 20,
+    fontSize: 20, 
     fontWeight: "bold",
     color: "#2F4454",
   },
@@ -427,26 +516,24 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   gridItemName: {
-    fontSize: 12,
+    fontSize: 12, 
     fontWeight: "bold",
     color: "#2F4454",
   },
-  emptyState: {
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 36,
+  editLinkContainer: {
+    alignSelf: "flex-end",
+    marginTop: 4,
   },
-  emptyText: {
-    marginTop: 14,
-    color: "#7A8B99",
-    fontSize: 14,
-    textAlign: "center",
+  editLinkText: {
+    fontSize: 10,
+    color: "#2F4454",
+    textDecorationLine: "underline",
+    fontWeight: "600",
   },
   fixedPaginationContainer: {
     backgroundColor: "#E8F5CC",
     paddingTop: 10,
-    paddingBottom: 120, // Diperbesar biar lepas dari Bottom Nav
+    paddingBottom: 120, 
   },
   pagination: {
     flexDirection: "row",

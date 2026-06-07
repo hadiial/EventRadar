@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+// File: app/event-form.tsx
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,8 +18,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import BottomNav from '@/components/bottom-nav';
-import { database } from '../database';
-import { ref, get, child, set } from 'firebase/database';
+import { auth, database } from '../database';
+import { ref, push } from 'firebase/database';
 
 /**
  * EventForm Component
@@ -44,41 +46,63 @@ export default function EventFormScreen() {
   const [registrationLink, setRegistrationLink] = useState('');
   const [phone, setPhone] = useState(''); // Nomor telepon
 
-  /**
-   * Hitung event_id_(n) berdasarkan jumlah data yang sudah ada di /events
-   */
-  const getNextEventKey = async (): Promise<string> => {
-    const dbRef = ref(database);
-    const snapshot = await get(child(dbRef, 'events'));
-    const existingCount = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
-    return `event_id_${existingCount + 1}`;
-  };
+  // Show popup when the page is first opened
+  useEffect(() => {
+    // Add a small timeout so the page transition feels smooth before the alert appears
+    setTimeout(() => {
+      Alert.alert(
+        'Perhatian',
+        'Apakah Anda yakin ingin mengajukan event baru? Harap gunakan fitur ini dengan bijak dan pastikan informasi yang diberikan valid.',
+        [
+          { text: 'Batal', style: 'cancel', onPress: () => router.back() },
+          { text: 'Yakin', style: 'default' }
+        ]
+      );
+    }, 100);
+  }, []);
 
   /**
-   * Kirim data event ke Firebase Realtime Database
+   * Send event data to Firebase Realtime Database.
+   * Uses push() to always generate a unique key and avoid overwriting existing events.
    */
   const submitToFirebase = async () => {
+    // Validate year format (must be 4 digits)
+    const validateYear = (dateStr: string) => {
+      const parts = dateStr.split(', ');
+      // Check if there is a comma and space, and whether the year has 4 digits
+      return parts.length === 2 && parts[1].length === 4;
+    };
+
+    if (!validateYear(createdAt) || !validateYear(date)) {
+      Alert.alert(
+        'Format Tanggal Tidak Valid', 
+        'Harap pastikan tahun menggunakan format 4 digit (contoh: 2026).'
+      );
+      return;
+    }  
+    
     setIsLoading(true);
     try {
-      const eventKey = await getNextEventKey();
-      const eventsRef = ref(database, `events/${eventKey}`);
-
+      const eventsRef = ref(database, 'events');
       const eventData = {
-        'Nama Event': title,
-        'Nama penyelenggara': createdBy,
-        'Kategori Event': category,
-        'Deskripsi event': description,
-        'upload poster': posterUrl,
-        'Periode mulai': createdAt,
-        'periode akhir': date,
-        'lokasi': location,
-        'Link pendaftaran': registrationLink,
-        'phone': phone,
+        'Nama Event': title.trim(),
+        'Nama penyelenggara': createdBy.trim(),
+        'Kategori Event': category.trim(),
+        'Deskripsi event': description.trim(),
+        'upload poster': posterUrl.trim(),
+        'Periode mulai': createdAt.trim(),
+        'periode akhir': date.trim(),
+        'lokasi': location.trim(),
+        'Link pendaftaran': registrationLink.trim(),
+        'phone': phone.trim(),
+        'status': 'pending', 
+        'createdAt': new Date().toISOString(), 
+        'userId': auth.currentUser?.uid,
       };
 
-      await set(eventsRef, eventData);
+      await push(eventsRef, eventData);
 
-      Alert.alert('Berhasil!', 'Event berhasil dikirim.', [
+      Alert.alert('Berhasil!', 'Event berhasil dikirim dan sedang menunggu kurasi dari Admin.', [
         { text: 'OK', onPress: () => router.replace('/') },
       ]);
     } catch (error) {
@@ -90,20 +114,90 @@ export default function EventFormScreen() {
   };
 
   /**
-   * Handles the 'Next' button logic
+   * Handles the 'Next' and 'Submit' button logic with strict validations
    */
   const handleNext = () => {
     if (currentStep === 1) {
-      // Validasi step 1
-      if (!title.trim() || !createdBy.trim() || !category.trim()) {
-        Alert.alert('Lengkapi Form', 'Mohon isi Nama Event, Nama Penyelenggara, dan Kategori Event.');
+      // Validate Step 1: Check if any field is still empty
+      if (
+        !title.trim() || 
+        !createdBy.trim() || 
+        !category.trim() || 
+        !description.trim() || 
+        !posterUrl.trim()
+      ) {
+        Alert.alert(
+          'Data Belum Lengkap', 
+          'Harap lengkapi semua kolom pada tahap ini sebelum melanjutkan ke langkah berikutnya.'
+        );
         return;
       }
       setCurrentStep(2);
     } else {
-      // Final submission
-      submitToFirebase();
+      // Validate Step 2: Check if any field is still empty
+      if (
+        !createdAt.trim() || 
+        !date.trim() || 
+        !location.trim() || 
+        !phone.trim() || 
+        !registrationLink.trim()
+      ) {
+        Alert.alert(
+          'Data Belum Lengkap', 
+          'Harap lengkapi semua kolom logistik dan kontak sebelum mengirimkan event.'
+        );
+        return;
+      }
+
+      // Show final confirmation popup before actually sending to Firebase
+      Alert.alert(
+        'Konfirmasi Submit',
+        'Apakah Anda yakin ingin submit event ini? Data akan dikirimkan ke Admin untuk proses peninjauan.',
+        [
+          { text: 'Back', style: 'cancel' },
+          { text: 'Submit', style: 'default', onPress: () => submitToFirebase() }
+        ]
+      );
     }
+  };
+
+  /**
+   * Auto-format for date: "DD MM, YYYY"
+   */
+  const handleDateChange = (text: string, setter: (val: string) => void) => {
+    // 1. Clean all characters except numbers
+    let cleaned = text.replace(/\D/g, '');
+    
+    // 2. Arrange format DD MM, YYYY
+    let formatted = '';
+    if (cleaned.length > 0) {
+      // Input DD
+      formatted = cleaned.substring(0, 2);
+      
+      if (cleaned.length > 2) {
+        // Add space and MM
+        formatted += ' ' + cleaned.substring(2, 4);
+      }
+      
+      if (cleaned.length > 4) {
+        // Add comma, space and YYYY
+        formatted += ', ' + cleaned.substring(4, 8);
+      }
+    }
+    
+    setter(formatted);
+  };
+
+  /**
+   * Validate year format must be 4 digits
+   */
+  const validateYear = (dateStr: string) => {
+    const parts = dateStr.split(', ');
+    if (parts.length === 2) {
+      const year = parts[1];
+      return year.length === 4;
+    }
+    return false;
   };
 
   return (
@@ -120,7 +214,6 @@ export default function EventFormScreen() {
             <Text style={styles.logoGreen}>EVENT</Text>
             <Text style={styles.logoGreen}>RADAR</Text>
           </View>
-
           <Text style={styles.mainTitle}>Ajukan Event</Text>
 
           {/* STEP 1: BASIC INFORMATION */}
@@ -136,7 +229,6 @@ export default function EventFormScreen() {
                   placeholderTextColor="#A0A0A0"
                 />
               </View>
-
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Nama Penyelenggara</Text>
                 <TextInput
@@ -147,7 +239,6 @@ export default function EventFormScreen() {
                   placeholderTextColor="#A0A0A0"
                 />
               </View>
-
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Kategori Event</Text>
                 <TextInput
@@ -158,7 +249,6 @@ export default function EventFormScreen() {
                   placeholderTextColor="#A0A0A0"
                 />
               </View>
-
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Deskripsi Event</Text>
                 <TextInput 
@@ -172,14 +262,13 @@ export default function EventFormScreen() {
                   textAlignVertical="top"
                 />
               </View>
-
               <View style={styles.inputBox}>
-                <Text style={styles.inputLabel}>Upload Poster (URL / Max 4 item)</Text>
+                <Text style={styles.inputLabel}>Upload Poster (URL)</Text>
                 <TextInput
                   style={styles.textInput}
                   value={posterUrl}
                   onChangeText={setPosterUrl}
-                  placeholder="Masukkan URL poster"
+                  placeholder="Masukkan URL poster yang valid"
                   placeholderTextColor="#A0A0A0"
                   autoCapitalize="none"
                 />
@@ -193,17 +282,19 @@ export default function EventFormScreen() {
               {/* Back to Step 1 Button */}
               <TouchableOpacity onPress={() => setCurrentStep(1)} style={styles.backLink}>
                 <Ionicons name="arrow-back" size={18} color="#2F4454" />
-                <Text style={styles.backLinkText}>Edit Basic Info</Text>
+                <Text style={styles.backLinkText}>Back</Text>
               </TouchableOpacity>
 
               <View style={styles.inputBox}>
                 <Text style={styles.inputLabel}>Periode Mulai</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="DD MM, YY"
+                  placeholder="DD MM, YYYY"
                   placeholderTextColor="#A0A0A0"
                   value={createdAt}
-                  onChangeText={setCreatedAt}
+                  onChangeText={(val) => handleDateChange(val, setCreatedAt)}
+                  keyboardType="number-pad"
+                  maxLength={13}
                 />
               </View>
 
@@ -211,10 +302,12 @@ export default function EventFormScreen() {
                 <Text style={styles.inputLabel}>Periode Akhir</Text>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="DD MM, YY"
+                  placeholder="DD MM, YYYY"
                   placeholderTextColor="#A0A0A0"
                   value={date}
-                  onChangeText={setDate}
+                  onChangeText={(val) => handleDateChange(val, setDate)}
+                  keyboardType="number-pad"
+                  maxLength={13}
                 />
               </View>
 
@@ -236,7 +329,7 @@ export default function EventFormScreen() {
                   keyboardType="phone-pad"
                   value={phone}
                   onChangeText={setPhone}
-                  placeholder="Masukkan nomor telepon"
+                  placeholder="Masukkan nomor telepon penanggung jawab"
                   placeholderTextColor="#A0A0A0"
                 />
               </View>

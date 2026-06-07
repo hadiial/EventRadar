@@ -1,35 +1,37 @@
-import BottomNav from "@/components/bottom-nav";
+// File: app/admin-bookmarks.tsx
+// Admin bookmark page — sama persis seperti user bookmarks-page.tsx
+// menggunakan bookmarkStore yang sama (persist ke Firebase)
+
+import AdminBottomNav from "@/components/admin-bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
-    Image,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth, database } from "../database";
 import { BookmarkedEvent, bookmarkStore } from "../store/bookmarkStore";
 
-export default function BookmarksScreen() {
+export default function AdminBookmarksScreen() {
   const router = useRouter();
   const [userProfile, setUserProfile] = useState<{
     fullname: string;
     fakultas: string;
   } | null>(null);
-
-  // --- ADDITIONAL STATE FOR SEARCH BAR ---
   const [searchQuery, setSearchQuery] = useState("");
 
-  // State bookmark diambil dari singleton store agar persisten
+  // State bookmark dari singleton store
   const [bookmarkedEvents, setBookmarkedEvents] = useState<BookmarkedEvent[]>(
     () => bookmarkStore.getBookmarked(),
   );
@@ -39,12 +41,11 @@ export default function BookmarksScreen() {
     const unsubscribe = bookmarkStore.subscribe(() => {
       setBookmarkedEvents(bookmarkStore.getBookmarked());
     });
-    // Sync saat komponen mount (kalau ada perubahan dari halaman lain)
     setBookmarkedEvents(bookmarkStore.getBookmarked());
     return unsubscribe;
   }, []);
 
-  // Fetch user profile dari Firebase
+  // Fetch admin profile dari Firebase
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -53,7 +54,7 @@ export default function BookmarksScreen() {
           const data = snapshot.val();
           if (data) {
             setUserProfile({
-              fullname: data.fullname || data.username || "User",
+              fullname: data.fullname || data.username || "Admin",
               fakultas: data.fakultas || "",
             });
           }
@@ -64,12 +65,10 @@ export default function BookmarksScreen() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Filter logic to match typed text with event titles
   const filteredEvents = bookmarkedEvents.filter((event) =>
     event.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // Hapus satu event dari bookmark
   const handleDelete = (id: string) => {
     bookmarkStore.remove(id);
   };
@@ -84,9 +83,6 @@ export default function BookmarksScreen() {
         <View>
           <Text style={styles.userName}>
             {userProfile?.fullname || "Memuat..."}
-          </Text>
-          <Text style={styles.userMajor}>
-            {userProfile?.fakultas || "Memuat..."}
           </Text>
         </View>
       </View>
@@ -117,24 +113,26 @@ export default function BookmarksScreen() {
         <View style={styles.listContainer}>
           {filteredEvents.length > 0 ? (
             filteredEvents.map((item) => {
-              // Determine navigation target:
-              // - DB events: `item.isDbEvent === true` -> use item.id as event key
-              // - Mock events: numeric ids '1'..'6' map to EVT-001..EVT-006
               const handlePress = () => {
                 if ((item as any).isDbEvent) {
-                  router.push(`/events/${item.id}`);
+                  // Navigate to admin detail page for DB events
+                  router.push({
+                    pathname: "/admin-schedule-detail",
+                    params: {
+                      eventKey: item.id,
+                      name: item.title,
+                      status: item.status,
+                      posterUrl: item.posterUrl,
+                    },
+                  } as any);
                 } else if (/^\d+$/.test(item.id)) {
                   const num = Number(item.id);
                   const evtId = `EVT-${String(num).padStart(3, "0")}`;
                   router.push(`/events/${evtId}`);
                 } else {
-                  // Fallback: treat id as event key
                   router.push(`/events/${item.id}`);
                 }
               };
-
-              const hasPoster =
-                !!item.posterUrl && item.posterUrl.startsWith("http");
 
               return (
                 <TouchableOpacity
@@ -145,9 +143,9 @@ export default function BookmarksScreen() {
                 >
                   {/* Image Placeholder */}
                   <View style={styles.cardImagePlaceholder}>
-                    {hasPoster ? (
+                    {item.posterUrl && item.posterUrl.startsWith("http") ? (
                       <Image
-                        source={{ uri: item.posterUrl! }}
+                        source={{ uri: item.posterUrl }}
                         style={styles.cardImage}
                         resizeMode="cover"
                       />
@@ -161,13 +159,11 @@ export default function BookmarksScreen() {
                     <Text style={styles.cardStatus}>{item.status}</Text>
                   </View>
 
-                  {/* Delete Icon (stop propagation by preventing default navigation) */}
+                  {/* Delete Icon (stop propagation) */}
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={(e) => {
-                      if (e?.stopPropagation) {
-                        e.stopPropagation();
-                      }
+                      e.stopPropagation?.();
                       handleDelete(item.id);
                     }}
                   >
@@ -186,8 +182,8 @@ export default function BookmarksScreen() {
         </View>
       </ScrollView>
 
-      {/* BOTTOM NAVIGATION BAR */}
-      <BottomNav />
+      {/* ADMIN BOTTOM NAVIGATION */}
+      <AdminBottomNav />
     </SafeAreaView>
   );
 }
