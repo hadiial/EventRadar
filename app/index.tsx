@@ -1,25 +1,25 @@
 // File: app/index.tsx
 
+import BottomNav from "@/components/bottom-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { onValue, ref } from "firebase/database";
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Platform,
-  Dimensions,
+    Dimensions,
+    Image,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { auth, database } from "../database";
-import BottomNav from "@/components/bottom-nav";
 
 const { width: screenWidth } = Dimensions.get("window");
 const CAROUSEL_ITEMS = 3;
@@ -53,9 +53,22 @@ function parsePeriodDate(dateStr: string): Date | null {
   }
 
   const months: Record<string, number> = {
-    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-    mei: 4, agu: 7, okt: 9, des: 11,
+    jan: 0,
+    feb: 1,
+    mar: 2,
+    apr: 3,
+    may: 4,
+    jun: 5,
+    jul: 6,
+    aug: 7,
+    sep: 8,
+    oct: 9,
+    nov: 10,
+    dec: 11,
+    mei: 4,
+    agu: 7,
+    okt: 9,
+    des: 11,
   };
   const textMatch = dateStr.match(/^(\d{1,2})\s+([a-zA-Z]{3}),?\s*(\d{2,4})$/);
   if (textMatch) {
@@ -267,7 +280,7 @@ export default function HomeScreen() {
         if (!slots || typeof slots !== "object") return;
         const total = Object.values(slots).reduce(
           (sum, cnt) => sum + (typeof cnt === "number" ? cnt : 0),
-          0
+          0,
         );
         map[eventKey] = total;
       });
@@ -282,9 +295,7 @@ export default function HomeScreen() {
 
   // 4 event terbaru berdasarkan createdAt (atau urutan key jika tidak ada)
   const recommendedEvents = useMemo(() => {
-    return [...allEvents]
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 4);
+    return [...allEvents].sort((a, b) => b.createdAt - a.createdAt).slice(0, 4);
   }, [allEvents]);
 
   // 2 event paling banyak views
@@ -299,12 +310,21 @@ export default function HomeScreen() {
   // - banner[1] = event views terbanyak (rank 1)
   // - banner[2] = event views terbanyak (rank 2)
   const bannerEvents = useMemo(() => {
-    const newest = [...allEvents].sort((a, b) => b.createdAt - a.createdAt)[0] || null;
+    const newest =
+      [...allEvents].sort((a, b) => b.createdAt - a.createdAt)[0] || null;
     const topViews = [...allEvents]
       .sort((a, b) => (viewsMap[b.key] || 0) - (viewsMap[a.key] || 0))
       .slice(0, 2);
     return [newest, topViews[0] || null, topViews[1] || null];
   }, [allEvents, viewsMap]);
+
+  // Filtered events berdasarkan search query
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return allEvents.filter((event) =>
+      event.title.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [searchQuery, allEvents]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -366,7 +386,9 @@ export default function HomeScreen() {
               }
               activeOpacity={0.9}
             >
-              {event && event.posterUrl && event.posterUrl.startsWith("http") ? (
+              {event &&
+              event.posterUrl &&
+              event.posterUrl.startsWith("http") ? (
                 <Image
                   source={{ uri: event.posterUrl }}
                   style={styles.featuredImage}
@@ -386,7 +408,12 @@ export default function HomeScreen() {
                     </View>
                   )}
                   {idx > 0 && (
-                    <View style={[styles.featuredBadge, { backgroundColor: "#6D8299" }]}>
+                    <View
+                      style={[
+                        styles.featuredBadge,
+                        { backgroundColor: "#6D8299" },
+                      ]}
+                    >
                       <Text style={styles.featuredBadgeText}>
                         👁 {viewsMap[event.key] || 0} views
                       </Text>
@@ -409,51 +436,83 @@ export default function HomeScreen() {
         </View>
 
         {/* RECOMMENDED FOR YOU */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recommended for you</Text>
-        </View>
+        {searchQuery.trim() ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Search Results ({filteredEvents.length})
+              </Text>
+            </View>
 
-        <View style={styles.gridContainer}>
-          {recommendedEvents.length > 0 ? (
-            recommendedEvents.map((event) => (
-              <EventCard
-                key={event.key}
-                event={event}
-                onPress={() => router.push(`/events/${event.key}` as any)}
-              />
-            ))
-          ) : (
-            <Text style={styles.noDataText}>
-              Rekomendasi event belum tersedia
-            </Text>
-          )}
-        </View>
+            {filteredEvents.length > 0 ? (
+              <View style={styles.gridContainer}>
+                {filteredEvents.map((event) => (
+                  <EventCard
+                    key={event.key}
+                    event={event}
+                    onPress={() => router.push(`/events/${event.key}` as any)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.noResultsContainer}>
+                <Text style={styles.noResultsText}>
+                  Tidak ada event yang cocok dengan "{searchQuery}"
+                </Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recommended for you</Text>
+            </View>
 
-        <TouchableOpacity
-          style={styles.moreLink}
-          onPress={() => router.push("/all-events" as any)}
-        >
-          <Text style={styles.moreText}>More</Text>
-        </TouchableOpacity>
+            <View style={styles.gridContainer}>
+              {recommendedEvents.length > 0 ? (
+                recommendedEvents.map((event) => (
+                  <EventCard
+                    key={event.key}
+                    event={event}
+                    onPress={() => router.push(`/events/${event.key}` as any)}
+                  />
+                ))
+              ) : (
+                <Text style={styles.noDataText}>
+                  Rekomendasi event belum tersedia
+                </Text>
+              )}
+            </View>
 
-        {/* POPULAR NEAR YOU */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Popular Near You</Text>
-        </View>
+            <TouchableOpacity
+              style={styles.moreLink}
+              onPress={() => router.push("/all-events" as any)}
+            >
+              <Text style={styles.moreText}>More</Text>
+            </TouchableOpacity>
 
-        <View style={styles.gridContainer}>
-          {popularEvents.length > 0 ? (
-            popularEvents.map((event) => (
-              <EventCard
-                key={event.key}
-                event={event}
-                onPress={() => router.push(`/events/${event.key}` as any)}
-              />
-            ))
-          ) : (
-            <Text style={styles.noDataText}>Popular event belum tersedia</Text>
-          )}
-        </View>
+            {/* POPULAR NEAR YOU */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Popular Near You</Text>
+            </View>
+
+            <View style={styles.gridContainer}>
+              {popularEvents.length > 0 ? (
+                popularEvents.map((event) => (
+                  <EventCard
+                    key={event.key}
+                    event={event}
+                    onPress={() => router.push(`/events/${event.key}` as any)}
+                  />
+                ))
+              ) : (
+                <Text style={styles.noDataText}>
+                  Popular event belum tersedia
+                </Text>
+              )}
+            </View>
+          </>
+        )}
 
         {/* FOOTER LINKS */}
         <View style={styles.footer}>
@@ -670,6 +729,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 20,
     color: "#7A8B99",
+    fontStyle: "italic",
+  },
+  noResultsContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  noResultsText: {
+    textAlign: "center",
+    color: "#7A8B99",
+    fontSize: 14,
     fontStyle: "italic",
   },
   moreLink: {
