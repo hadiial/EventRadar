@@ -50,14 +50,28 @@ export default function UserProfile() {
     return () => unsubscribe();
   }, [router]);
 
+  // Menambahkan konfirmasi pop-up sebelum logout
   const handleLogout = () => {
-    signOut(auth)
-      .then(() => {
-        router.replace('/login');
-      })
-      .catch((error) => {
-        Alert.alert('Logout Gagal', 'Terjadi kesalahan saat logout.');
-      });
+    Alert.alert('Konfirmasi Logout', 'Apakah Anda yakin ingin keluar?', [
+      { text: 'Batal', style: 'cancel' },
+      { 
+        text: 'Logout', 
+        style: 'destructive', 
+        onPress: async () => {
+          try { 
+            await signOut(auth); 
+            router.replace('/login'); 
+          } catch (error) { 
+            Alert.alert('Logout Gagal', 'Terjadi kesalahan saat logout.'); 
+          }
+        }
+      }
+    ]);
+  };
+
+  // Menambahkan pop-up info untuk fitur yang belum dibuat
+  const handleFeatureClick = (featureName: string) => {
+    Alert.alert('Info', `Fitur ${featureName} akan segera hadir.`);
   };
 
   return (
@@ -105,7 +119,12 @@ export default function UserProfile() {
           <Text style={styles.settingsLabel}>Setelan Umum</Text>
           <View style={styles.settingsCard}>
             
-            <TouchableOpacity style={styles.settingItem} accessibilityRole="button">
+            {/* Tombol yang ditambahkan handleFeatureClick */}
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              accessibilityRole="button"
+              onPress={() => handleFeatureClick('Bahasa')}
+            >
               <Text style={styles.settingText}>Bahasa</Text>
               <Text style={styles.settingChevron}>&gt;</Text>
             </TouchableOpacity>
@@ -121,19 +140,31 @@ export default function UserProfile() {
             </TouchableOpacity>
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.settingItem} accessibilityRole="button">
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              accessibilityRole="button"
+              onPress={() => handleFeatureClick('Hubungi Kami')}
+            >
               <Text style={styles.settingText}>Hubungi Kami</Text>
               <Text style={styles.settingChevron}>&gt;</Text>
             </TouchableOpacity>
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.settingItem} accessibilityRole="button">
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              accessibilityRole="button"
+              onPress={() => handleFeatureClick('Syarat dan Ketentuan')}
+            >
               <Text style={styles.settingText}>Syarat dan Ketentuan</Text>
               <Text style={styles.settingChevron}>&gt;</Text>
             </TouchableOpacity>
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.settingItem} accessibilityRole="button">
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              accessibilityRole="button"
+              onPress={() => handleFeatureClick('Tentang Kami')}
+            >
               <Text style={styles.settingText}>Tentang Kami</Text>
               <Text style={styles.settingChevron}>&gt;</Text>
             </TouchableOpacity>

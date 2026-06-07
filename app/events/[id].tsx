@@ -1,6 +1,6 @@
 // File: app/events/[id].tsx
-// Detail page untuk event — mendukung mock event (EVT-xxx) maupun event dari database (event_id_N)
 
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { get, onValue, ref, runTransaction } from "firebase/database";
@@ -258,7 +258,7 @@ export default function EventDetailScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Text style={styles.backText}>{"< Back"}</Text>
+            <Ionicons name="arrow-back" size={22} color="#2F4454" />
           </TouchableOpacity>
           <View style={styles.userInfo}>
             <View style={styles.avatarPlaceholder} />

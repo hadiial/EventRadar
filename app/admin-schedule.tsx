@@ -37,10 +37,10 @@ interface ScheduleItem {
   startDate: string; // periode mulai (raw)
 }
 
-const ITEMS_PER_PAGE = 6; // 3 rows × 2 columns
+const ITEMS_PER_PAGE = 8; 
 
 // ---------------------------------------------------------------------------
-// Helper: parse "DD MM, YY" or "DD Mon, YY" → { day, month, year }
+// Helper: parse "DD MM, YY" or "DD Mon, YY" -> { day, month, year }
 // ---------------------------------------------------------------------------
 function parseDateParts(dateStr: string): {
   day: string;
@@ -61,6 +61,7 @@ function parseDateParts(dateStr: string): {
     11: "November",
     12: "Desember",
   };
+
   const ABBR_ID: Record<string, string> = {
     jan: "Januari",
     feb: "Februari",
@@ -110,9 +111,9 @@ function parseDateParts(dateStr: string): {
 // ---------------------------------------------------------------------------
 export default function AdminScheduleScreen() {
   const router = useRouter();
-
   const [adminName, setAdminName] = useState("Admin");
   const [adminFakultas, setAdminFakultas] = useState("");
+
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -132,6 +133,7 @@ export default function AdminScheduleScreen() {
           const data = snap.val();
           if (data?.fullname) setAdminName(data.fullname);
           else if (data?.username) setAdminName(data.username);
+
           if (data?.fakultas) setAdminFakultas(data.fakultas);
         });
         return () => unsubDb();
@@ -168,6 +170,7 @@ export default function AdminScheduleScreen() {
             startDate: val["Periode mulai"] || "",
           };
         });
+
       setScheduleItems(items);
       setCurrentPage(1); // Reset to the first page when data changes
     });
@@ -178,6 +181,7 @@ export default function AdminScheduleScreen() {
     1,
     Math.ceil(scheduleItems.length / ITEMS_PER_PAGE),
   );
+
   const pagedItems = scheduleItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
@@ -222,7 +226,6 @@ export default function AdminScheduleScreen() {
           <View style={styles.gridContainer}>
             {pagedItems.map((item) => {
               const isBookmarked = bookmarkStore.isBookmarked(item.key);
-
               return (
                 <TouchableOpacity
                   key={item.key}
@@ -259,6 +262,7 @@ export default function AdminScheduleScreen() {
                       </View>
                       <Text style={styles.gridItemMonth}>{item.month}</Text>
                     </View>
+
                     <View style={styles.gridItemImageBox}>
                       {item.posterUrl && item.posterUrl.startsWith("http") ? (
                         <Image
@@ -333,62 +337,62 @@ export default function AdminScheduleScreen() {
             })}
           </View>
         )}
-
-        {/* PAGINATION */}
-        {totalPages > 1 && (
-          <View style={styles.pagination}>
-            <TouchableOpacity
-              style={styles.pageArrow}
-              onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              <Text
-                style={[
-                  styles.pageArrowText,
-                  currentPage === 1 && styles.pageArrowDisabled,
-                ]}
-              >
-                {"<"}
-              </Text>
-            </TouchableOpacity>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <TouchableOpacity
-                key={page}
-                style={[
-                  styles.pageBtn,
-                  page === currentPage && styles.pageBtnActive,
-                ]}
-                onPress={() => setCurrentPage(page)}
-              >
-                <Text
-                  style={[
-                    styles.pageBtnText,
-                    page === currentPage && styles.pageBtnTextActive,
-                  ]}
-                >
-                  {page}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={styles.pageArrow}
-              onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <Text
-                style={[
-                  styles.pageArrowText,
-                  currentPage === totalPages && styles.pageArrowDisabled,
-                ]}
-              >
-                {">"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
+
+      {/* FIXED PAGINATION CONTAINER */}
+      <View style={styles.fixedPaginationContainer}>
+        <View style={styles.pagination}>
+          <TouchableOpacity
+            style={styles.pageArrow}
+            onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            <Text
+              style={[
+                styles.pageArrowText,
+                currentPage === 1 && styles.pageArrowDisabled,
+              ]}
+            >
+              {"<"}
+            </Text>
+          </TouchableOpacity>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <TouchableOpacity
+              key={page}
+              style={[
+                styles.pageBtn,
+                page === currentPage && styles.pageBtnActive,
+              ]}
+              onPress={() => setCurrentPage(page)}
+            >
+              <Text
+                style={[
+                  styles.pageBtnText,
+                  page === currentPage && styles.pageBtnTextActive,
+                ]}
+              >
+                {page}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={styles.pageArrow}
+            onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            <Text
+              style={[
+                styles.pageArrowText,
+                currentPage === totalPages && styles.pageArrowDisabled,
+              ]}
+            >
+              {">"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <AdminBottomNav />
     </SafeAreaView>
@@ -428,12 +432,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#2F4454",
   },
-  userMajor: {
-    fontSize: 12,
-    color: "#2F4454",
-  },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 20,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -468,12 +468,12 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     width: "48%",
+    minHeight: 115, 
     backgroundColor: "#A9D08E",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 10,
     justifyContent: "space-between",
-    minHeight: 130,
   },
   gridItemBookmarked: {
     borderWidth: 2,
@@ -483,7 +483,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
   },
   gridItemDayRow: {
     flexDirection: "row",
@@ -491,7 +490,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   gridItemDay: {
-    fontSize: 24,
+    fontSize: 20, 
     fontWeight: "bold",
     color: "#2F4454",
   },
@@ -517,13 +516,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   gridItemName: {
-    fontSize: 14,
+    fontSize: 12, 
     fontWeight: "bold",
     color: "#2F4454",
-    marginBottom: 6,
   },
   editLinkContainer: {
     alignSelf: "flex-end",
+    marginTop: 4,
   },
   editLinkText: {
     fontSize: 10,
@@ -531,13 +530,16 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     fontWeight: "600",
   },
+  fixedPaginationContainer: {
+    backgroundColor: "#E8F5CC",
+    paddingTop: 10,
+    paddingBottom: 120, 
+  },
   pagination: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
     gap: 6,
-    paddingBottom: 10,
   },
   pageArrow: {
     paddingHorizontal: 6,
@@ -552,9 +554,9 @@ const styles = StyleSheet.create({
     color: "#B0BEC5",
   },
   pageBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "#A9D08E",
     justifyContent: "center",
     alignItems: "center",
